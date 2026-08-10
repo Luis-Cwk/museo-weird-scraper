@@ -19,7 +19,7 @@ dotenv.config();
 
 import { scrape, loadCandidates, saveCandidates, loadQueue, saveQueue, Candidate } from "./scraper";
 import { guard } from "./quote-guard";
-import { generateArtwork } from "./generate-artwork";
+// import { generateArtwork } from "./generate-artwork"; // legacy (kept for archive)
 import { generateThreeArtwork } from "./generate-three";
 
 const LOG_PATH = path.join(__dirname, "..", "logs", "agent.log");
