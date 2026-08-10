@@ -1,0 +1,14 @@
+node_modules/
+dist/
+data/
+.env
+*.log
+.DS_Store
+# Hardhat
+smart-contracts/artifacts/
+smart-contracts/cache/
+smart-contracts/typechain-types/
+smart-contracts/coverage/
+smart-contracts/coverage.json
+# Logs / runtime
+logs/

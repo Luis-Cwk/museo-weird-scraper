@@ -1,0 +1,53 @@
+{
+  "name": "museo-weird-scraper",
+  "version": "2.0.0",
+  "description": "Autonomous bot that scrapes Bluesky for weird, illegal, surreal museum content from Mexico and turns it into typographic NFT art",
+  "main": "scripts/autonomous-agent.ts",
+  "scripts": {
+    "scrape": "ts-node scripts/scraper.ts",
+    "scrape:stats": "ts-node scripts/scraper.ts --stats",
+    "scrape:approve": "ts-node scripts/scraper.ts --approve",
+    "scrape:reject": "ts-node scripts/scraper.ts --reject",
+    "scrape:test-bsky": "ts-node scripts/bluesky-client.ts",
+    "scrape:test-llm": "ts-node scripts/llm-client.ts",
+    "guard:test": "ts-node scripts/quote-guard.ts",
+    "guard:test:full": "ts-node scripts/quote-guard.ts --full",
+    "generate-art": "ts-node scripts/generate-artwork.ts",
+    "mint-and-list": "ts-node scripts/mint-and-list.ts",
+    "agent": "ts-node scripts/autonomous-agent.ts",
+    "agent:testnet": "ts-node scripts/autonomous-agent.ts --testnet",
+    "agent:dry": "ts-node scripts/autonomous-agent.ts --dry-run",
+    "agent:once": "ts-node scripts/autonomous-agent.ts --once",
+    "test": "jest",
+    "build": "tsc",
+    "dev": "ts-node scripts/scraper.ts"
+  },
+  "keywords": [
+    "bluesky",
+    "atproto",
+    "scraper",
+    "museums",
+    "mexico",
+    "art",
+    "generative",
+    "nvidia",
+    "nft"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@atproto/api": "^0.20.37",
+    "@langchain/core": "^1.2.4",
+    "@langchain/langgraph": "^1.4.9",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^20.11.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.4.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.1",
+    "ethers": "^6.17.0",
+    "sharp": "^0.33.2"
+  }
+}
