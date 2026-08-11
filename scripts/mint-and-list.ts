@@ -41,7 +41,7 @@ function getProvider(): ethers.JsonRpcProvider {
 
 function metadataFor(item: QueueItem, imageUrl: string, animationUrl?: string): Record<string, unknown> {
   return {
-    name: `Museo Weird #${item.id}`,
+    name: `Huaca, Sistemas Mágicos #${item.id}`,
     description: item.content,
     image: imageUrl,
     ...(animationUrl ? { animation_url: animationUrl } : {}),

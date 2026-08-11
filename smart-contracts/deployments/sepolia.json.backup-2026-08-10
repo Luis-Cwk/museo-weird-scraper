@@ -1,0 +1,16 @@
+{
+  "network": "sepolia",
+  "chainId": 11155111,
+  "deployer": "0x1A49138cCb61C50D72A44a299F6C74c690f6c67f",
+  "timestamp": "2026-08-08T04:28:13.120Z",
+  "contracts": {
+    "MuseoWeirdNFT": {
+      "address": "0x37F570f578bE0FA3cF62C1e51b0FfBD566d0D43a",
+      "auctionContract": "0xaF0DDb90464F471E038613aB40cB7A5C4d9b8A0f"
+    },
+    "MuseoWeirdAuction": {
+      "address": "0xaF0DDb90464F471E038613aB40cB7A5C4d9b8A0f"
+    }
+  },
+  "explorerUrl": "https://sepolia.etherscan.io/address/0x37F570f578bE0FA3cF62C1e51b0FfBD566d0D43a"
+}

@@ -13,14 +13,14 @@ import 'dotenv/config';
 const CONFIG = {
   rpc: process.env.SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com',
   chainId: 11155111,
-  nft: process.env.NFT_CONTRACT || '0x37F570f578bE0FA3cF62C1e51b0FfBD566d0D43a',
-  auction: process.env.AUCTION_CONTRACT || '0xaF0DDb90464F471E038613aB40cB7A5C4d9b8A0f',
+  nft: process.env.NFT_CONTRACT || '0xA47a22ee757a9697eAF8CFFCcf2cf18Fe1f2Ac4f',
+  auction: process.env.AUCTION_CONTRACT || '0xBbb749aa36f5188302d3AeA7C3A5a6A6fc194036',
   pinataGateway: 'https://gateway.pinata.cloud/ipfs/',
   pinataGateway2: 'https://ipfs.io/ipfs/',
   pinataGateway3: 'https://dweb.link/ipfs/',
   etherscanToken: 'https://sepolia.etherscan.io/token/',
   etherscanAuction: 'https://sepolia.etherscan.io/address/',
-  outPath: path.join(__dirname, '..', 'dist', 'weird-museo.html'),
+  outPath: path.resolve(process.cwd(), 'dist', 'weird-museo.html'),
 };
 
 const ABI = {
@@ -157,7 +157,10 @@ function renderHtml(items: any[], name: string, symbol: string): string {
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Museo Weird · Lo raro es político</title>
+<title>Huaca, Sistemas Mágicos · Lo raro es político</title>
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <meta name="description" content="Museo Weird es un archivo vivo de hechos anómalos: rarezas, rumores, historias que el canon oficial borra. Cada pieza es una grieta en la memoria. Subastar lo raro es una forma de no olvidar — y de financiarlo." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -250,6 +253,36 @@ function renderHtml(items: any[], name: string, symbol: string): string {
     line-height: 0.95;
     margin-bottom: 24px;
   }
+  h1 .h-letter {
+    display: inline-block;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.5s ease, transform 0.5s ease;
+  }
+  h1.animate .h-letter { opacity: 1; transform: translateY(0); }
+  h1 .h-letter:nth-child(1)  { transition-delay: 0.00s; }
+  h1 .h-letter:nth-child(2)  { transition-delay: 0.04s; }
+  h1 .h-letter:nth-child(3)  { transition-delay: 0.08s; }
+  h1 .h-letter:nth-child(4)  { transition-delay: 0.12s; }
+  h1 .h-letter:nth-child(5)  { transition-delay: 0.16s; }
+  h1 .h-letter:nth-child(6)  { transition-delay: 0.20s; }
+  h1 .h-letter:nth-child(7)  { transition-delay: 0.24s; }
+  h1 .h-letter:nth-child(8)  { transition-delay: 0.28s; }
+  h1 .h-letter:nth-child(9)  { transition-delay: 0.32s; }
+  h1 .h-letter:nth-child(10) { transition-delay: 0.36s; }
+  h1 .h-letter:nth-child(11) { transition-delay: 0.40s; }
+  h1 .h-letter:nth-child(12) { transition-delay: 0.44s; }
+  h1 .h-letter:nth-child(13) { transition-delay: 0.48s; }
+  h1 .h-letter:nth-child(14) { transition-delay: 0.52s; }
+  h1 .h-letter:nth-child(15) { transition-delay: 0.56s; }
+  h1 .h-letter:nth-child(16) { transition-delay: 0.60s; }
+  h1 .h-letter:nth-child(17) { transition-delay: 0.64s; }
+  h1 .h-letter:nth-child(18) { transition-delay: 0.68s; }
+  h1 .h-letter:nth-child(19) { transition-delay: 0.72s; }
+  h1 .h-letter:nth-child(20) { transition-delay: 0.76s; }
+  h1 .h-letter:nth-child(21) { transition-delay: 0.80s; }
+  h1 .h-letter:nth-child(22) { transition-delay: 0.84s; }
+  h1 .h-accent { color: var(--bid); }
   .hero-sub {
     font-size: clamp(1rem, 2vw, 1.3rem);
     font-weight: 300;
@@ -572,7 +605,7 @@ function renderHtml(items: any[], name: string, symbol: string): string {
 
 <header class="hero">
   <div class="hero-tag">// archivo de lo que el canon no guarda · scraper → LLM guard → SVG → IPFS → Sepolia · ${escapeHtml(symbol)}</div>
-  <h1>Museo<br/>Weird.</h1>
+  <h1 id="hero-title"><span class="h-letter">H</span><span class="h-letter">u</span><span class="h-letter">a</span><span class="h-letter">c</span><span class="h-letter">a</span><span class="h-letter">,</span><span class="h-letter">&nbsp;</span><span class="h-letter">S</span><span class="h-letter">i</span><span class="h-letter">s</span><span class="h-letter">t</span><span class="h-letter">e</span><span class="h-letter">m</span><span class="h-letter">a</span><span class="h-letter">s</span><br/><span class="h-letter h-accent">M</span><span class="h-letter h-accent">á</span><span class="h-letter h-accent">g</span><span class="h-letter h-accent">i</span><span class="h-letter h-accent">c</span><span class="h-letter h-accent">o</span><span class="h-letter h-accent">s</span><span class="h-letter">.</span></h1>
   <p class="hero-sub">Cada hecho raro es una <em>grieta</em> en el canon. Donde el archivo oficial borra, lo raro preserva. Esta subasta no vende arte: <strong>subvenciona la memoria de lo anómalo</strong> — lo que no cabe en el museo, lo que no sale en la prensa, lo que sobrevive en reddit y bluesky a pesar del olvido.</p>
   <p class="hero-quote">«La tecnología es solo una extensión de lo que el cuerpo ya sabe.»</p>
   <div class="hero-stats">
@@ -980,6 +1013,30 @@ ${items.length === 0 ? '<div class="empty">No hay NFTs todavía.</div>' :
   function frame(){gl.uniform1f(uT,(performance.now()-t0)/1000);gl.uniform2f(uR,canvas.width,canvas.height);gl.uniform2f(uM,mouse.x,mouse.y);gl.drawArrays(gl.TRIANGLE_STRIP,0,4);requestAnimationFrame(frame);}
   frame();
 })();
+</script>
+<script>
+  // Hero title stagger reveal (one-shot, prefers-reduced-motion safe)
+  document.addEventListener('DOMContentLoaded', function () {
+    var title = document.getElementById('hero-title');
+    if (!title) return;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { title.classList.add('animate'); return; }
+    requestAnimationFrame(function () {
+      setTimeout(function () { title.classList.add('animate'); }, 120);
+    });
+  });
+</script>
+<script>
+  // Hero title stagger reveal (one-shot, prefers-reduced-motion safe)
+  document.addEventListener('DOMContentLoaded', function () {
+    var title = document.getElementById('hero-title');
+    if (!title) return;
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { title.classList.add('animate'); return; }
+    requestAnimationFrame(function () {
+      setTimeout(function () { title.classList.add('animate'); }, 120);
+    });
+  });
 </script>
 </body>
 </html>`;
