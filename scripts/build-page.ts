@@ -13,8 +13,8 @@ import 'dotenv/config';
 const CONFIG = {
   rpc: process.env.SEPOLIA_RPC || 'https://ethereum-sepolia-rpc.publicnode.com',
   chainId: 11155111,
-  nft: process.env.NFT_CONTRACT || '0xA47a22ee757a9697eAF8CFFCcf2cf18Fe1f2Ac4f',
-  auction: process.env.AUCTION_CONTRACT || '0xBbb749aa36f5188302d3AeA7C3A5a6A6fc194036',
+  nft: process.env.NFT_CONTRACT || '0x87E57042C8a4cd95D3aF635940294802aabfFc85',
+  auction: process.env.AUCTION_CONTRACT || '0x54dEdeBC156044E3de51f54264Db26eC393bbB0D',
   pinataGateway: 'https://gateway.pinata.cloud/ipfs/',
   pinataGateway2: 'https://ipfs.io/ipfs/',
   pinataGateway3: 'https://dweb.link/ipfs/',
