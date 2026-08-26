@@ -211,6 +211,11 @@ function fitToViewport() {{
   camDist = Math.max(distForWidth, distForHeight, 8);
   camera.position.set(0, 0, camDist);
   camera.lookAt(0, 0, 0);
+  // 2026-08-26: also resize the WebGL renderer to the new viewport size.
+  // Without this, the canvas stays at the initial size while the CSS
+  // background (sky + washes + vignette + scanlines) resizes correctly,
+  // causing the voxel to render at the wrong scale on a resized window.
+  renderer.setSize(window.innerWidth, window.innerHeight);
 }}
 fitToViewport();
 window.addEventListener('resize', fitToViewport);
