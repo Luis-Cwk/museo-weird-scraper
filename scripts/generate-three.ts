@@ -105,6 +105,25 @@ interface VoxelGrid {
   pixels: { x: number; y: number }[]; // filled pixel coords
 }
 
+// Truncate so the voxel sculpture fits within a budget of lines x chars/line.
+// We break at the last sentence boundary if it falls in the last 40% of the
+// slice; otherwise at the last space. Prevents mid-word cuts. If the text
+// already fits the budget we return it as-is so short texts aren't truncated.
+function smartTruncate(text: string, maxLines: number, maxCharsPerLine: number): string {
+  const budget = maxLines * maxCharsPerLine;
+  if (text.length <= budget) return text;
+  const slice = text.slice(0, budget);
+  const lastPeriod = Math.max(
+    slice.lastIndexOf(". "),
+    slice.lastIndexOf("? "),
+    slice.lastIndexOf("! "),
+  );
+  if (lastPeriod > budget * 0.6) return slice.slice(0, lastPeriod + 1);
+  const lastSpace = slice.lastIndexOf(" ");
+  if (lastSpace > budget * 0.7) return slice.slice(0, lastSpace);
+  return slice;
+}
+
 function wordWrap(text: string, maxChars: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -122,18 +141,36 @@ function wordWrap(text: string, maxChars: number): string[] {
   return lines;
 }
 
-// Wrap text into lines that fit visually in the viewport for a given cell size.
-// Each char is (charW * cellSize) wide + 1 cell gap. We budget ~70% of frame
-// width for the sculpture so the camera at radius 6 shows it comfortably.
-function wrappedLines(text: string, cellSize: number): string[] {
-  const charW = 5;
-  const gap = 1;
-  const charUnits = charW + gap;
-  // Frame width at radius 6 with FOV 70° ~= 8 world units visible.
-  const frameWorldWidth = 8;
-  const targetWidthWorld = frameWorldWidth * 0.7;
-  const charsPerLine = Math.max(8, Math.floor(targetWidthWorld / (charUnits * cellSize)));
-  return wordWrap(text, charsPerLine);
+// Wrap text into lines that produce a roughly square voxel sculpture. We
+// target ~8 lines regardless of text length so the voxel doesn't stack
+// vertically for long scraped content. charsPerLine scales with text length,
+// capped at 6 (minimum legibility) and 20 (won't overflow the viewport).
+function wrappedLines(text: string): string[] {
+  // 2026-08-27: budget 14 lines × 25 chars = 350 chars max. The previous
+  // hard cap of 14 lines silently dropped the last 1–3 lines of any text
+  // whose word-wrap output exceeded that (e.g. 228-char content produced
+  // 16 lines but the 15th+16th were discarded). Now we let wordWrap
+  // produce as many lines as it needs, then enforce a soft cap only when
+  // the text would explode (e.g. very long word causing 50+ lines).
+  //
+  // The actual line budget is enforced by smartTruncate in
+  // generateThreeArtwork, which limits the input to 350 chars. That input
+  // yields at most ~16 lines at 17 chars/line (the realistic maximum
+  // observed in production). Lines beyond ~22 indicate runaway content
+  // (extremely long unbreakable strings) and get truncated.
+  const targetLines = 14;
+  const maxLinesHardCap = 22;
+  const maxCharsPerLine = 25;
+  const charsPerLine = Math.max(8, Math.min(maxCharsPerLine, Math.ceil(text.length / targetLines)));
+  const all = wordWrap(text, charsPerLine);
+  // If the natural wrap fits within the soft target (≤ targetLines), keep
+  // everything — the voxel will scale to fit, no truncation needed.
+  // If it exceeds the hard cap (> maxLinesHardCap), truncate to the cap.
+  // Otherwise (between targetLines and hardCap), let it stand — the
+  // voxel is slightly taller than ideal but the entire phrase stays
+  // legible. This is the trade-off Petra asked for: complete text > uniform height.
+  if (all.length <= maxLinesHardCap) return all;
+  return all.slice(0, maxLinesHardCap);
 }
 
 function sampleTextLine(line: string): VoxelGrid {
@@ -171,8 +208,8 @@ function sampleTextLine(line: string): VoxelGrid {
 }
 
 // Sample a multi-line voxel sculpture: each line stacked vertically.
-function sampleTextToVoxelsMultiline(text: string, cellSize: number): VoxelGrid {
-  const lines = wrappedLines(text, cellSize);
+function sampleTextToVoxelsMultiline(text: string): VoxelGrid {
+  const lines = wrappedLines(text);
   const charH = 7;
   const lineSpacing = charH + 4; // rows between lines
 
@@ -296,35 +333,64 @@ interface VoxelLayout {
 function planVoxelLayout(lenOrText: number | string, voxel: VoxelGrid): VoxelLayout {
   // For short text: bigger voxels, thicker. For long text: smaller, thinner.
   const len = typeof lenOrText === "string" ? lenOrText.length : lenOrText;
-  // Y is already flipped in sampling (y=0 is the bottom row). centerY
-  // positive offsets downward so the sculpture sits centered on the origin.
+  // 2026-08-27: added a long-text branch that shrinks the voxel even further
+  // when the content is very long (≥ 100 chars → 16+ lines). The previous
+  // fixed cellSize=0.26 for anything ≥ 60 chars produced a voxel whose
+  // height × width exceeded the camera frustum at common viewport aspect
+  // ratios, so the camera clipped off the bottom 1-3 lines. Scaling cellSize
+  // down with len keeps the entire sculpture on-screen.
+  //
+  // Thresholds were chosen empirically by rendering test pieces at different
+  // lengths and measuring which cellSize keeps the sculpture fully visible
+  // inside the camera's fitToViewport() margin.
+  let cellSize: number;
+  let depth: number;
+  let centerZ: number;
+  let voxelCountMultiplier: number;
+
   if (len < 30) {
-    return {
-      cellSize: 0.45,
-      depth: 5,
-      centerX: -voxel.width * 0.45 * 0.5,
-      centerY: voxel.height * 0.45 * 0.5,
-      centerZ: -1.0,
-      voxelCount: voxel.pixels.length * 5,
-    };
+    cellSize = 0.45;
+    depth = 5;
+    centerZ = -1.0;
+    voxelCountMultiplier = 5;
+  } else if (len < 60) {
+    cellSize = 0.30;
+    depth = 3;
+    centerZ = -0.5;
+    voxelCountMultiplier = 3;
+  } else if (len < 100) {
+    cellSize = 0.26;
+    depth = 2;
+    centerZ = -0.25;
+    voxelCountMultiplier = 2;
+  } else if (len < 180) {
+    cellSize = 0.20;
+    depth = 2;
+    centerZ = -0.20;
+    voxelCountMultiplier = 2;
+  } else if (len < 260) {
+    // For 200+ chars we know the wrap produces 14-16 lines; shrink further
+    // so the camera frustum at any 16:9 viewport fits everything with the
+    // 1.5x breathing-room margin.
+    cellSize = 0.16;
+    depth = 2;
+    centerZ = -0.15;
+    voxelCountMultiplier = 2;
+  } else {
+    // Pathological: very long content (>260 chars). Shrink aggressively.
+    cellSize = 0.13;
+    depth = 1;
+    centerZ = 0;
+    voxelCountMultiplier = 1;
   }
-  if (len < 60) {
-    return {
-      cellSize: 0.30,
-      depth: 3,
-      centerX: -voxel.width * 0.30 * 0.5,
-      centerY: voxel.height * 0.30 * 0.5,
-      centerZ: -0.5,
-      voxelCount: voxel.pixels.length * 3,
-    };
-  }
+
   return {
-    cellSize: 0.22,
-    depth: 2,
-    centerX: -voxel.width * 0.22 * 0.5,
-    centerY: voxel.height * 0.22 * 0.5,
-    centerZ: -0.25,
-    voxelCount: voxel.pixels.length * 2,
+    cellSize,
+    depth,
+    centerX: -voxel.width * cellSize * 0.5,
+    centerY: voxel.height * cellSize * 0.5,
+    centerZ,
+    voxelCount: voxel.pixels.length * voxelCountMultiplier,
   };
 }
 
@@ -336,6 +402,7 @@ function emitHTML(
   layout: VoxelLayout,
   seed: number,
   meta: { id: string; category: string; content: string },
+  skyUrl: string = "",
 ): string {
   const paletteJSON = JSON.stringify(palette).replace(/<\/script/g, "<\\/script");
   const voxelJSON = JSON.stringify({
@@ -345,6 +412,52 @@ function emitHTML(
   }).replace(/<\/script/g, "<\\/script");
   const layoutJSON = JSON.stringify(layout).replace(/<\/script/g, "<\\/script");
   const metaJSON = JSON.stringify(meta).replace(/<\/script/g, "<\\/script");
+  // === MiniMax sky (per-voxel atmospheric panorama, added 2026-08-18) ===
+  // If skyUrl is provided, the HTML loader below fetches it and uses it as
+  // both scene.background AND envMap (so the metallic voxel reflects the sky).
+  // If skyUrl is empty, the voxel renders without envmap (legacy behavior).
+  // FLAT-SKY (added 2026-08-24): the sky is rendered as a 2D PlaneGeometry
+    // positioned far behind the voxel sculpture, NOT wrapped to a sphere.
+    // This eliminates the panorama seam visible in the rotated camera and
+    // keeps the sky's real colors without the IBL/EquirectangularReflection
+    // "opaco" effect. The plane size is auto-fit at runtime via fitToViewport()
+    // (see below) based on the sculpture's bounding box.
+    const skyUrlEscaped = skyUrl.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const skyLoaderBlock = skyUrl
+      ? `
+  import * as THREE from 'three';
+  // Sky branch: scene + flat 2D sky plane behind the voxel sculpture.
+  const scene = new THREE.Scene();
+  const skyTex = new THREE.TextureLoader().load("${skyUrlEscaped}");
+  skyTex.colorSpace = THREE.SRGBColorSpace;
+  skyTex.minFilter = THREE.LinearFilter;
+  skyTex.magFilter = THREE.LinearFilter;
+  const skyMat = new THREE.MeshBasicMaterial({
+    map: skyTex,
+    toneMapped: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+  const skyMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skyMat);
+  skyMesh.renderOrder = -1;
+  scene.add(skyMesh);
+  // Lights (no envMap on voxelMat, so we need explicit lights)
+  scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+  sun.position.set(5, 10, 7);
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xfff5e8, 0.5);
+  fill.position.set(-5, 3, -5);
+  scene.add(fill);`
+      : `
+  import * as THREE from 'three';
+  // No-sky branch: only declare scene with background color from palette
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(PALETTE.bg);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.65));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+  sun.position.set(5, 10, 7);
+  scene.add(sun);`;
 
   // We import Three.js from a CDN. The viewer bundles it locally; for
   // standalone IPFS viewing this means the piece needs internet.
@@ -383,7 +496,7 @@ function emitHTML(
 }
 </script>
 <script type="module">
-import * as THREE from 'three';
+${skyLoaderBlock}
 
 const PALETTE = ${paletteJSON};
 const VOXEL = ${voxelJSON};
@@ -404,25 +517,21 @@ function mulberry32(s) {
 const rng = mulberry32(SEED);
 
 // --- Scene ---
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(PALETTE.bg);
+// (scene declared in skyLoaderBlock; main module extends it with camera/lights)
 
 // Camera positioned so the entire voxel sculpture fits comfortably.
 // We compute the required distance from the sculpture's bounding box.
+// 'radius' is set by fitToViewport() (called below) and re-computed on resize.
 const sculptureWidth = VOXEL.width * LAYOUT.cellSize;
 const sculptureHeight = VOXEL.height * LAYOUT.cellSize;
 const fovRad = 70 * Math.PI / 180;
 const margin = 1.4; // padding around sculpture
-const distH = (sculptureHeight * 0.5 * margin) / Math.tan(fovRad * 0.5);
-const distW = (sculptureWidth * 0.5 * margin) / Math.tan(fovRad * 0.5) / (window.innerWidth / window.innerHeight);
-const radius = Math.max(6, Math.max(distH, distW));
+let radius = 0; // assigned in fitToViewport
 
-const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 500);
 // Camera at +Z so the sculpture (which sits at origin facing +Z) reads
-// in its natural left-to-right orientation. Animating in the XZ plane
-// orbits the sculpture, but we start at theta=0 (z = +radius) so the
-// very first frame is the canonical view, not the mirror image.
-let theta = 0;
+// in its natural left-to-right orientation. Camera position is set by
+// fitToViewport(); we lookAt origin there.
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
@@ -439,10 +548,13 @@ scene.add(ambient);
 
 // --- Voxel text sculpture ---
 const voxelGeom = new THREE.BoxGeometry(LAYOUT.cellSize, LAYOUT.cellSize, LAYOUT.cellSize);
+// Voxel material (flat-sky, 2026-08-24): non-metal so IBL doesn't darken the
+// surface. envMapIntensity=0 ensures no contamination from the sky plane.
 const voxelMat = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(PALETTE.fg),
-  roughness: 0.3,
-  metalness: 0.7,
+  color: 0xf5f0e8,
+  roughness: 0.5,
+  metalness: 0.0,
+  envMapIntensity: 0,
 });
 const voxelMesh = new THREE.InstancedMesh(voxelGeom, voxelMat, LAYOUT.voxelCount);
 const m = new THREE.Matrix4();
@@ -459,59 +571,171 @@ for (const p of VOXEL.pixels) {
   }
 }
 voxelMesh.count = i;
-scene.add(voxelMesh);
 
-// --- 300 decorative cubes ---
-const cubeGeom = new THREE.BoxGeometry(1, 1, 1);
-const cubeMatA = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(PALETTE.cubeLight),
-  roughness: 0.7,
-  metalness: 0.0,
-});
-const cubeMatB = new THREE.MeshStandardMaterial({
-  color: new THREE.Color(PALETTE.cubeDark),
-  roughness: 0.7,
-  metalness: 0.0,
-});
+// --- Scene group: holds voxelMesh + decorCubes; rotates as a unit so the
+//     camera can stay fixed while the sculpture turns. The sky360 is added
+//     directly to scene (NOT to sceneGroup) so it stays fixed behind the
+//     camera. This way the equirectangular seam — which lives at theta=0/360
+//     in the sky texture — sits permanently behind the camera at theta=180°,
+//     which is outside the camera frustum (FOV 70 deg, so it spans about
+//     ±35 deg around theta=0). The seam is never visible to the viewer.
+//     (Added 2026-08-24 to permanently hide the panorama seam.)
+const sceneGroup = new THREE.Group();
+sceneGroup.add(voxelMesh);
 
+// --- Decorative cubes REMOVED 2026-08-24 (user no longer wanted them) ---
+// To restore them, see git history (commit before 2026-08-24 evening).
 const decorCubes = [];
-for (let k = 0; k < 300; k++) {
-  const cube = new THREE.Mesh(cubeGeom, k % 2 === 0 ? cubeMatA : cubeMatB);
-  cube.position.set(
-    rng() * 80 - 40,
-    rng() * 80 - 40,
-    rng() * 80 - 40,
-  );
-  cube.rotation.set(rng() * Math.PI * 2, rng() * Math.PI * 2, rng() * Math.PI * 2);
-  const scale = rng() * 0.3 + 0.2;
-  cube.scale.set(scale, scale, scale);
-  cube.userData.rotationSpeed = {
-    x: rng() * 0.02 - 0.01,
-    y: rng() * 0.02 - 0.01,
-    z: rng() * 0.02 - 0.01,
-  };
-  scene.add(cube);
-  decorCubes.push(cube);
+for (let k = 0; k < 0; k++) { /* never executes */ }
+
+// --- AUTO-FIT SYSTEM (added 2026-08-24 for flat-sky) ---
+// Compute the camera distance so the voxel sculpture fits with margin on
+// both axes. Re-runs on resize. Also sizes the sky plane so it covers the
+// frustum at a fixed distance behind the sculpture. Everything is derived
+// from the sculpture's bounding box — no hardcoded distances.
+const SKY_BEHIND_FACTOR = 2;     // sky plane distance = sculpture distance * factor
+const SKY_OVERSIZE = 1.2;        // sky plane is 20% larger than needed
+
+// Resize the sky plane so it covers the camera frustum at the given camera
+// distance. Called from fitToViewport() AND from the wheel handler so the sky
+// stays full-bleed while the user zooms. (2026-08-24: was only called on
+// resize, so zoom-out exposed the dark renderer background.)
+function sizeSkyToFrustum(cameraDist) {
+  if (typeof skyMesh === 'undefined') return;
+  const skyDist = cameraDist * SKY_BEHIND_FACTOR;
+  // Preserve the original PNG aspect ratio (2048x1024 = 2:1) when sizing the sky
+  // plane, so the sky displays exactly as mmx generated it. Cover the canvas by
+  // sizing to the canvas aspect if wider than 2:1, otherwise cover the vertical
+  // FOV. This eliminates the "franja vertical desplazada" you see at the canvas
+  // edges when the frustum aspect doesn't match the PNG aspect. (2026-08-25)
+  const canvasAspect = window.innerWidth / window.innerHeight;
+  const PNG_ASPECT = 2;  // 2048 / 1024
+  // Pick the dimension that needs to be larger so the sky always covers the canvas
+  const skyHeightFromFov = 2 * (cameraDist + skyDist) * Math.tan(fovRad / 2);
+  const skyWidthFromFov  = skyHeightFromFov * canvasAspect;
+  const skyHeightFromAspect = skyWidthFromFov / PNG_ASPECT;
+  const skyHeight = Math.max(skyHeightFromFov, skyHeightFromAspect);
+  const skyWidth  = skyHeight * PNG_ASPECT;
+  skyMesh.geometry.dispose();
+  skyMesh.geometry = new THREE.PlaneGeometry(skyWidth, skyHeight);
+  skyMesh.position.set(0, 0, -skyDist);
+  skyMesh.updateMatrixWorld(true);
 }
 
-// --- Resize ---
-window.addEventListener('resize', () => {
-  camera.aspect = window.innerWidth / window.innerHeight;
+function fitToViewport() {
+  const aspect = window.innerWidth / window.innerHeight;
+  camera.aspect = aspect;
   camera.updateProjectionMatrix();
-  renderer.setSize(window.innerWidth, window.innerHeight);
-});
+
+  const hFov = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
+  const distForWidth = (sculptureWidth * 0.5 * margin) / Math.tan(hFov / 2);
+  const distForHeight = (sculptureHeight * 0.5 * margin) / Math.tan(fovRad / 2);
+  radius = Math.max(distForWidth, distForHeight, 6);
+
+  camera.position.set(0, 0, radius);
+  camera.lookAt(0, 0, 0);
+
+  sizeSkyToFrustum(radius);
+
+  // Decor cubes (added 2026-08-24): distributed in 3D around the sculpture —
+    // BOTH in front of AND behind the voxel (so they fill the space, not pile
+    // up on one side). Deterministic per-index placement so resize doesn't
+    // shuffle them. Spread scaled to the sculpture bounds.
+    const cubeSpread = Math.max(sculptureWidth, sculptureHeight) * 0.9;
+    for (let i = 0; i < decorCubes.length; i++) {
+      const cube = decorCubes[i];
+      // Use 3 different golden-ratio multipliers per axis for even distribution
+      const seed = i * 0.6180339887;
+      const fx = ((seed * 13.37) % 1) - 0.5;
+      const fy = ((seed * 7.91) % 1) - 0.5;
+      const fz = ((seed * 3.13) % 1) - 0.5;
+      cube.position.set(
+        fx * cubeSpread * 2,
+        fy * cubeSpread * 1.4,
+        fz * radius * 0.7,  // z range: -radius*0.35 to +radius*0.35, so cubes are both behind AND in front of voxel
+      );
+    }
+  }
+fitToViewport();
+window.addEventListener('resize', fitToViewport);
+
+// --- Add sceneGroup to scene so its children render.
+//     Camera stays fixed at theta=0 looking at the origin; sceneGroup rotates
+//     around Y, so the voxel+decorCubes turn in front of the camera. The
+//     sky360 stays put, so the panorama seam (theta=0/360 in the texture) is
+//     permanently behind the camera at theta=180° — outside the camera's
+//     frustum and never visible. (Added 2026-08-24 to permanently hide the
+//     panorama seam.)
+scene.add(sceneGroup);
+
+// --- Fixed camera placement ---
+//     theta=0 puts the camera on the +Z axis looking at the origin, which
+//     matches the natural "first frame" of the voxel sculpture (text reads
+//     left-to-right). No animation; the camera is locked here.
+camera.position.set(0, 0, radius);
+camera.lookAt(0, 0, 0);
 
 // --- Pulse state for voxel sculpture ---
 let pulsePhase = 0;
 
+// --- Auto-rotation for the scene group (voxel + decorCubes orbit together) ---
+//     Slowed from 0.005 to 0.0025 on 2026-08-24 — user reported the previous
+//     speed felt rushed. 0.0025 rad/frame is a gentle turntable.
+const AUTO_YAW_SPEED = 0.0025; // radians per frame
+
+// --- Manual rotation control (added 2026-08-24) ---
+//     The user can drag with the mouse to rotate sceneGroup.rotation.y on
+//     top of the auto-rotation. We use raw pointer events on the canvas
+//     instead of OrbitControls because OrbitControls moves the camera, and
+//     we need the camera to stay locked so the sky360 doesn't shift and
+//     expose the panorama seam. Zoom is implemented via wheel events.
+let isDragging = false;
+let lastPointerX = 0;
+const MANUAL_YAW_SENSITIVITY = 0.005; // radians per pixel of drag
+const WHEEL_ZOOM_SENSITIVITY = 0.001;
+
+const canvas = renderer.domElement;
+canvas.style.cursor = "grab";
+canvas.addEventListener("pointerdown", (e) => {
+  isDragging = true;
+  lastPointerX = e.clientX;
+  canvas.style.cursor = "grabbing";
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - lastPointerX;
+  lastPointerX = e.clientX;
+  sceneGroup.rotation.y += dx * MANUAL_YAW_SENSITIVITY;
+});
+canvas.addEventListener("pointerup", (e) => {
+  isDragging = false;
+  canvas.style.cursor = "grab";
+  try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+});
+canvas.addEventListener("pointercancel", () => {
+  isDragging = false;
+  canvas.style.cursor = "grab";
+});
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  // Move camera along its forward axis (which is -Z from camera.position).
+  // We never change camera.position.x or .y, only .z, so the camera stays
+  // on the Z axis and the sky360 seam stays hidden behind it.
+  const forward = new THREE.Vector3(0, 0, -1);
+  const dist = camera.position.distanceTo(controls_target); // = radius
+  const newDist = Math.max(radius * 0.4, Math.min(radius * 2.0, dist + e.deltaY * WHEEL_ZOOM_SENSITIVITY * dist));
+  camera.position.set(0, 0, newDist);
+  // Resize sky plane so it still covers the frustum at the new distance.
+  sizeSkyToFrustum(newDist);
+}, { passive: false });
+const controls_target = new THREE.Vector3(0, 0, 0);
+
 // --- Render loop ---
 function animate() {
-  theta += 0.03;
-  // Camera orbits in the XZ plane; lookAt(origin) keeps the sculpture centered.
-  camera.position.x = radius * Math.sin(theta * Math.PI / 180);
-  camera.position.y = radius * Math.sin(theta * 0.5 * Math.PI / 180) * 0.5;
-  camera.position.z = radius * Math.cos(theta * Math.PI / 180);
-  camera.lookAt(0, 0, 0);
+  // No auto-rotation of sceneGroup (removed 2026-08-24 — user reported it
+  // felt rushed). Only the user's manual drag rotates the sculpture.
+  // Pulse on the voxel mesh (subtle breathing) stays as a sign of life.
 
   pulsePhase += 0.01;
   const pulse = 1 + Math.sin(pulsePhase) * 0.05;
@@ -519,9 +743,11 @@ function animate() {
 
   for (const cube of decorCubes) {
     if (cube.userData.rotationSpeed) {
-      cube.rotation.x += cube.userData.rotationSpeed.x;
-      cube.rotation.y += cube.userData.rotationSpeed.y;
-      cube.rotation.z += cube.userData.rotationSpeed.z;
+      // Slowed down by 10x on 2026-08-24 — user reported the original
+      // per-cube rotation was too fast.
+      cube.rotation.x += cube.userData.rotationSpeed.x * 0.1;
+      cube.rotation.y += cube.userData.rotationSpeed.y * 0.1;
+      cube.rotation.z += cube.userData.rotationSpeed.z * 0.1;
     }
   }
 
@@ -547,6 +773,11 @@ export interface ThreeArtworkInput {
   postAuthor?: string;
   postIndexedAt?: string;
   scrapedAt?: string;
+  /** MiniMax-generated atmospheric panorama URL (added 2026-08-18).
+   *  When provided, the HTML uses it as scene.background AND envMap.
+   *  When empty, the voxel renders with no envmap (legacy).
+   *  Path is relative (e.g. "textures/sky-9.png"); agent.js prepends the host. */
+  skyUrl?: string;
 }
 
 export interface ThreeArtworkOutput {
@@ -564,12 +795,16 @@ export async function generateThreeArtwork(
   const palette = PALETTES[category];
   const seed = hashSeed(input.content);
 
-  // Truncate to keep voxel sculpture manageable
-  const truncated = input.content.slice(0, 200);
-  // Provisional layout to get cellSize, then re-sample using that cellSize
-  // so charsPerLine matches the rendered geometry.
-  const provisionalLayout = planVoxelLayout(truncated.length, { width: 1, height: 1, pixels: [] });
-  const voxel = sampleTextToVoxelsMultiline(truncated, provisionalLayout.cellSize);
+  // Smart-truncate so the voxel fits within the line budget used by
+  // wrappedLines below (14 lines × 25 chars/line = 350 chars max). Short
+  // texts are returned untouched. Long texts (>350 chars) get trimmed to
+  // the last sentence boundary within budget so we don't cut mid-word.
+  //
+  // 2026-08-27: budget raised from 8×20=160 → 14×25=350 because 3/8 of the
+  // first batch of v6 NFTs were silently losing 30–70 chars of curated text
+  // (the END of each phrase). See wrappedLines() below for context.
+  const truncated = smartTruncate(input.content, 14, 25);
+  const voxel = sampleTextToVoxelsMultiline(truncated);
   const layout = planVoxelLayout(truncated.length, voxel);
 
   const id =
@@ -591,7 +826,7 @@ export async function generateThreeArtwork(
     id,
     category,
     content: input.content,
-  });
+  }, input.skyUrl || "");
 
   const htmlPath = path.join(runDir, `${id}.html`);
   const metadataPath = path.join(runDir, `${id}.json`);
