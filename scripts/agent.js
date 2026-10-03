@@ -257,12 +257,12 @@ const SKY_CATEGORY_HINT = {
   landslide:          "fresh landslide scar with raw red earthfall cascading down, displaced vegetation, dust cloud rising",
   disaster_response:  "evacuation warning, leaden sky overhead, emergency vehicles with flashing lights, sirens implied",
   drought:            "cracked plateau stretching to horizon, bleached cracked soil, heat haze shimmering, dead trees as silhouettes",
-  climate_violence:   "apocalyptic smoke-funneled storm, blood-red sky, choking atmosphere, lightning behind smoke",
+  climate_violence:   "somber storm sky veiled with drifting smoke, muted red-orange dusk, heavy atmosphere, distant lightning on the horizon",
   water_pollution:    "polluted river with sickly tinted water, industrial pipes discharging foam, dead fish floating",
   displacement:       "abandoned road disappearing into gray fog, melancholic emptiness, lone luggage piece as narrative anchor",
-  human_rights:       "institutional concrete plaza, gray oppressive facade, searchlights cutting through fog",
+  human_rights:       "institutional concrete plaza, gray monumental facade, searchlights cutting through fog",
   extraction:         "open-pit mine scar with terraced earthworks, dust haze, heavy machinery as silhouettes against orange sky",
-  necrocapitalism:    "industrial necropolis with glowing toxic towers, smokestacks pumping dark plumes, acid rain implied",
+  necrocapitalism:    "industrial landscape with tall smokestacks releasing dark plumes, heavy overcast, muted light",
   denialism:          "smog over downtown skyline, oblivious city below complacent overcast, billboard showing fake blue sky",
   surreal:            "deep dreamlike museum landscape, impossible architecture defying gravity, golden desaturated light from unknown source",
 };
@@ -270,7 +270,7 @@ const SKY_CATEGORY_HINT = {
 const SKY_INTENSITY_WORDS = {
   low:    "quiet, subtle, ominous undercurrent, low contrast",
   medium: "weighted, visceral, tension under wide horizon",
-  high:   "violent, overwhelming, apocalyptic, raw power",
+  high:   "somber, weighty, heavy atmosphere, dramatic muted light, wide horizon bearing consequence",
 };
 
 // 2026-08-31: Letterbox guard. MiniMax sometimes ignores "no letterbox" and
@@ -500,7 +500,7 @@ function generateFallbackSky(localPath, queueId) {
 const SCENE_KEYWORD_OVERRIDES = [
   {
     keys: ["incendio", "incendios", "forestal", "bosque", "bosques", "quema", "quemas", "deforestaci"],
-    scene: "raging forest fire, wall of orange flame consuming a treeline, thick smoke columns, charred blackened ground, embers in the air",
+    scene: "forest landscape after a burn, smoke columns rising above a treeline, charred ground, drifting embers under muted light",
   },
   {
     keys: ["sequía", "sequia", "seco", "desertificaci"],
@@ -528,7 +528,7 @@ const SCENE_KEYWORD_OVERRIDES = [
   },
   {
     keys: ["represión", "represion", "protesta", "manifestaci", "esmad", "policía", "policia"],
-    scene: "institutional concrete plaza, gray oppressive facade, riot police with shields, tear gas haze, searchlights cutting fog",
+    scene: "institutional concrete plaza, gray monumental facade, static barricades, low haze, searchlights cutting through fog",
   },
   {
     keys: ["río", "rio", "agua", "residual", "alcantarillado"],
@@ -594,18 +594,18 @@ function buildSkyPrompt(candidate) {
   const cat = candidate.aiCategory || "other";
   const impact = candidate.aiImpactScore || 5;
   // Truncate content to keep prompt under 1500 chars (mmx API limit).
-  const content = (candidate.content || "").slice(0, 80);
+  const content = (candidate.content || "").slice(0, 120);
   // Prefer a keyword-pinned scene (e.g. forest fire) over the coarse category
   // hint, so the image actually matches what the piece is about.
   // Pieza especial (rama huaca-diversa): si HUACA_SPECIAL_SCENE está definida,
   // pisa el anchor del cielo con la escena temática (p.ej. Tlatelolco/México).
   const SPECIAL_SCENE = process.env.HUACA_SPECIAL_SCENE || "";
-  const anchor = SPECIAL_SCENE || detectSceneHint(candidate.content) || SKY_CATEGORY_HINT[cat] || "environmental dystopia, atmospheric distress";
+  const anchor = SPECIAL_SCENE || detectSceneHint(candidate.content) || SKY_CATEGORY_HINT[cat] || "atmospheric environmental landscape, quiet tension";
   const band = impact >= 8 ? "high" : impact >= 6 ? "medium" : "low";
   const intensity = SKY_INTENSITY_WORDS[band];
   const nouns = extractProperNouns(content);
   const SPECIAL_REGION = process.env.HUACA_SPECIAL_REGION || "Colombia";
-  const sceneFeatures = nouns.length > 0 ? nouns.join(", ") : (SPECIAL_REGION + ", " + cat.replace(/_/g, " "));
+  const sceneFeatures = nouns.length > 0 ? nouns.join(", ") : SPECIAL_REGION;
 
   // Composition: top 60% sky/atmosphere, bottom 40% narrative foreground.
   // The foreground is what carries the story. The sky is what unifies.
@@ -618,37 +618,25 @@ function buildSkyPrompt(candidate) {
     "the TOP 60 percent of the frame is sky and atmosphere, " +
     "the BOTTOM 40 percent is the ground scene with strong narrative foreground, " +
     "horizon line perfectly level at 60 percent from the top, " +
-    "EDGE-TO-EDGE NARRATIVE: the LEFT edge, RIGHT edge, and CENTER of the frame " +
-    "must all carry equal narrative weight. Buildings, structures, lights, " +
-    "vegetation, weather, ground texture, and atmosphere must extend CONTINUOUSLY " +
-    "across the entire horizontal width. NO empty bands, NO dark margins, " +
-    "NO blurred edges on the left or right sides. The image must look intentional " +
-    "and complete at every horizontal position from 0% to 100% width. ";
+    "EDGE-TO-EDGE NARRATIVE: equal narrative weight across the LEFT, RIGHT, and CENTER " +
+    "of the frame, with scene content extending CONTINUOUSLY across the full width. ";
 
-  const narrative = anchor + ", " + intensity + ", " +
-    "scene features: " + sceneFeatures + ", " +
-    "strong compositional anchor in the foreground, " +
-    "atmospheric depth with foreground middle-ground background layers, " +
-    "mood conveys the weight of " + cat.replace(/_/g, " ") + ", ";
+  const narrative = "landscape directly inspired by this real account: '" + content.trim() + "'. " +
+    "Mood and atmosphere: " + anchor + ", " + intensity + ". " +
+    "strong compositional anchor, layered atmospheric depth, quiet gravity and consequence. ";
 
   // Frame constraints (16:9, no panorama wrap needed).
   const wrap =
     "16:9 framed photograph, " +
     "single continuous photograph taken in one take, " +
     "no human figures, NO TEXT ANYWHERE in the image (no words, letters, numbers, signage, watermarks), no logos, " +
-    "no black bars at top or bottom, no letterbox bars, " +
-    "no pillarbox bars at left or right, " +
-    "the entire frame is filled with content from edge to edge, " +
-    "single frame photograph, full-frame detail, " +
-    "atmospheric context: '" + content.trim() + "'";
+    "no black bars, no letterbox bars, no pillarbox bars, " +
+    "the entire frame filled with content from edge to edge, " +
+    "full-frame detail, sharp focus, ";
 
   // Avoid block — drop seam-specific items (irrelevant for 16:9).
   const avoidFull = (
-    "avoid: no empty dark borders at left or right edges, " +
-    "no pillarboxing, no letterboxing, no black bars, " +
-    "no compositional dead zones, " +
-    "no vignette of darkness concentrated at the edges, " +
-    "no double exposure, no ghosting, no horizon cut by frame, " +
+    "avoid: no double exposure, no ghosting, no horizon cut by frame, " +
     "no low resolution stretching artifacts"
   );
   const avoidShort = "avoid: no empty edges, no pillarboxing, no letterboxing, no black bars, no compositional dead zones";
