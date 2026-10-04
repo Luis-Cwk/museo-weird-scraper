@@ -1822,15 +1822,33 @@ async function runCycle() {
 
           const startingBid = ethers.parseEther("0.001");
           log(`  Auction duration: ${AUCTION_DURATION}s = ${(AUCTION_DURATION/3600).toFixed(1)}h (random in [${AUCTION_DURATION_MIN_HOURS}, ${AUCTION_DURATION_MAX_HOURS}]h)`);
-          const createAuctionTx = await auction.createAuction(
-            await nft.getAddress(),
-            tokenId,
-            startingBid,
-            AUCTION_DURATION,
-            txOverrides
-          );
-          const auctionR = await withTimeout(createAuctionTx.wait(), "createAuction");
-                    log(`  Auction created (tx ${auctionR.hash})`);
+          let auctionR;
+          let caDelay = 1500;
+          for (let cai = 1; cai <= 12; cai++) {
+            try {
+              const createAuctionTx = await auction.createAuction(
+                await nft.getAddress(),
+                tokenId,
+                startingBid,
+                AUCTION_DURATION,
+                txOverrides
+              );
+              auctionR = await withTimeout(createAuctionTx.wait(), "createAuction");
+              break;
+            } catch (e) {
+              const msg = String(e.message || e);
+              // Reintentar SOLO en "missing revert data" (el RPC no estimó → tx NO enviada → seguro).
+              // Evita reintentar "Already listed" (subasta ya creada = falso negativo) y timeouts.
+              if (cai < 12 && /missing revert data/i.test(msg) && !/already listed/i.test(msg)) {
+                log(`  ⚠️ createAuction revirtió (intento ${cai}/12): ${msg.slice(0, 80)} — reintentando...`);
+                await sleep(caDelay);
+                caDelay = Math.min(caDelay * 2, 15000);
+                continue;
+              }
+              throw e;
+            }
+          }
+          log(`  Auction created (tx ${auctionR.hash})`);
 
                     // 6. Update queue — CRÍTICO, se guarda INMEDIATAMENTE después del mint
                                         //    + createAuction. Si un upload (metadata/gallery) falla más abajo,
