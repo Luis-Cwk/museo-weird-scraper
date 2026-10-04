@@ -1820,6 +1820,25 @@ async function runCycle() {
           await withTimeout(approveTx.wait(), "approve");
           log(`  Approved auction (tokenId ${tokenId})`);
 
+          // Poll getApproved(tokenId) con backoff ANTES de createAuction: el RPC público
+          // (publicnode) puede servir estado STALE justo después de que el approve confirma,
+          // igual que pasaba con ownerOf tras el mint (ver bug "ERC721NonexistentToken").
+          // Fix 2026-10-04: token 59 tenía approve correcto on-chain, pero createAuction
+          // revirtió "Auction not approved" por lectura obsoleta de getApproved.
+          const auctionAddr = await auction.getAddress();
+          let gaDelay = 1500;
+          for (let gi = 1; gi <= 12; gi++) {
+            try {
+              const curApproved = await nft.getApproved(tokenId);
+              if (curApproved.toLowerCase() === auctionAddr.toLowerCase()) break;
+              log(`  ⚠️ getApproved(${tokenId})=${curApproved} ≠ auction (intento ${gi}/12) — esperando sincronización...`);
+            } catch (e) {
+              log(`  ⚠️ getApproved(${tokenId}) no visible aún (intento ${gi}/12): ${String(e.message || e).slice(0, 60)}`);
+            }
+            await sleep(gaDelay);
+            gaDelay = Math.min(gaDelay * 2, 15000);
+          }
+
           const startingBid = ethers.parseEther("0.001");
           log(`  Auction duration: ${AUCTION_DURATION}s = ${(AUCTION_DURATION/3600).toFixed(1)}h (random in [${AUCTION_DURATION_MIN_HOURS}, ${AUCTION_DURATION_MAX_HOURS}]h)`);
           let auctionR;
@@ -1837,9 +1856,11 @@ async function runCycle() {
               break;
             } catch (e) {
               const msg = String(e.message || e);
-              // Reintentar SOLO en "missing revert data" (el RPC no estimó → tx NO enviada → seguro).
+              // Reintentar en "missing revert data" (tx NO enviada → seguro) y en
+              // "Auction not approved" (lectura stale de getApproved, confirmado 2026-10-04
+              // con token 59: el approve SÍ estaba on-chain, solo el RPC iba retrasado).
               // Evita reintentar "Already listed" (subasta ya creada = falso negativo) y timeouts.
-              if (cai < 12 && /missing revert data/i.test(msg) && !/already listed/i.test(msg)) {
+              if (cai < 12 && /missing revert data|Auction not approved/i.test(msg) && !/already listed/i.test(msg)) {
                 log(`  ⚠️ createAuction revirtió (intento ${cai}/12): ${msg.slice(0, 80)} — reintentando...`);
                 await sleep(caDelay);
                 caDelay = Math.min(caDelay * 2, 15000);
