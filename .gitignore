@@ -27,3 +27,6 @@ deploy/
 lib/
 # Exploration/debug scripts (one-off, regenerated as needed)
 scripts/_exploration_*/
+
+# === Notas internas y previews locales (no se publican) ===
+_local/
