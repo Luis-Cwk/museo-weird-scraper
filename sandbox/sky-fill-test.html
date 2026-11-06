@@ -1,0 +1,128 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sky Fill Test v3</title>
+<style>
+  html,body{margin:0;background:#000;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh}
+  .label{position:fixed;top:8px;left:8px;color:#fff;background:rgba(0,0,0,0.7);padding:8px;font:11px monospace;z-index:99;line-height:1.4;max-width:380px}
+</style>
+</head><body>
+<canvas id="c"></canvas>
+<div class="label">
+<b>STRATEGY: sky fills the ENTIRE viewport</b><br>
+- Plane sized to FRUSTUM (no aspect constraints)<br>
+- Sky slightly stretched if canvas != 2:1, but COMPLETE<br>
+- Voxel sculpture in front (smaller, centered)<br>
+- Drag to rotate voxel (yaw only)
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias: true});
+renderer.setPixelRatio(1);
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 1);
+
+const scene = new THREE.Scene();
+
+// Sky as a regular texture (not equirectangular)
+const skyTex = new THREE.TextureLoader().load('textures/sky-8813.png');
+skyTex.colorSpace = THREE.SRGBColorSpace;
+skyTex.minFilter = THREE.LinearFilter;
+skyTex.magFilter = THREE.LinearFilter;
+
+const skyMat = new THREE.MeshBasicMaterial({
+  map: skyTex,
+  toneMapped: false,
+  depthWrite: false,
+});
+const skyMesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), skyMat);
+skyMesh.renderOrder = -1;
+scene.add(skyMesh);
+
+// Voxel sculpture: a single column of cubes, smaller and centered
+const sculpture = new THREE.Group();
+for (let i = 0; i < 60; i++) {
+  const c = new THREE.Mesh(
+    new THREE.BoxGeometry(0.15, 0.15, 0.15),
+    new THREE.MeshStandardMaterial({color: 0xffffff, metalness: 0.3, roughness: 0.5, emissive: 0x222222})
+  );
+  const col = Math.floor(i / 3) - 10;
+  const row = (i % 3) - 1;
+  c.position.set(row * 0.18, col * -0.18, 0);
+  sculpture.add(c);
+}
+sculpture.position.set(0, 0, 0.5);
+scene.add(sculpture);
+
+// Camera
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 100);
+const PLANE_DIST = 5;
+camera.position.set(0, 0, PLANE_DIST);
+camera.lookAt(0, 0, 0);
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+sun.position.set(2, 3, 5);
+scene.add(sun);
+
+// Sky plane size: always EXACTLY the frustum dimensions at PLANE_DIST.
+// We multiply by a small oversize factor (1.02) to avoid edge sampling
+// artifacts at the very edges of the canvas. The texture will stretch
+// slightly to fit (since PNG is 2:1 and canvas is 16:9) but the user
+// explicitly wants the COMPLETE image visible.
+function sizeSky() {
+  const canvasAspect = window.innerWidth / window.innerHeight;
+  const fovRad = 70 * Math.PI / 180;
+  const frustumH = 2 * PLANE_DIST * Math.tan(fovRad / 2);
+  const frustumW = frustumH * canvasAspect;
+  const k = 1.02;  // 2% oversize to avoid edge sampling
+  skyMesh.scale.set(frustumW * k, frustumH * k, 1);
+  skyMesh.position.set(0, 0, -PLANE_DIST);
+  console.log('frustum:', frustumW.toFixed(2), 'x', frustumH.toFixed(2),
+              ' canvas:', window.innerWidth, 'x', window.innerHeight);
+}
+sizeSky();
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  sizeSky();
+});
+
+// Drag to rotate voxel (yaw only)
+let isDragging = false;
+let lastX = 0;
+canvas.style.cursor = 'grab';
+canvas.addEventListener('pointerdown', (e) => {
+  isDragging = true;
+  lastX = e.clientX;
+  canvas.style.cursor = 'grabbing';
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!isDragging) return;
+  const dx = e.clientX - lastX;
+  lastX = e.clientX;
+  sculpture.rotation.y += dx * 0.01;
+});
+canvas.addEventListener('pointerup', (e) => {
+  isDragging = false;
+  canvas.style.cursor = 'grab';
+  try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+});
+canvas.addEventListener('pointercancel', () => {
+  isDragging = false;
+  canvas.style.cursor = 'grab';
+});
+
+function animate() {
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+animate();
+</script>
+</body></html>

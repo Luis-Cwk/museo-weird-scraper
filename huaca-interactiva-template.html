@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Huaca · Extensión</title>
+<meta name="description" content="Huaca, Sistemas Mágicos — extensión interactiva. Cinco mensajes de la era testnet, cinco cielos, cinco voces. Toca para cambiar." />
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: ui-monospace, "Courier New", monospace; -webkit-user-select: none; user-select: none; }
+  .sky {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background-size: cover; background-position: center center; background-repeat: no-repeat;
+    opacity: 0; transition: opacity 1.4s ease; z-index: 1; will-change: opacity;
+  }
+  .sky.active { opacity: 1; }
+  #three-canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; cursor: grab; touch-action: none; }
+  #three-canvas:active { cursor: grabbing; }
+  .meta { position: fixed; left: 16px; bottom: 12px; color: #ccc; font-size: 10px; letter-spacing: 3px; text-transform: uppercase; opacity: 0.85; pointer-events: none; z-index: 10; text-shadow: 0 0 6px rgba(0,0,0,0.5); }
+  .meta.right { left: auto; right: 16px; }
+</style>
+</head>
+<body>
+<div id="sky-a" class="sky active"></div>
+<div id="sky-b" class="sky"></div>
+<canvas id="three-canvas"></canvas>
+<div class="meta">HUACA · EXTENSIÓN</div>
+
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+
+<!-- ===== Sintetizador Hecker autónomo (determinista por pieza) ===== -->
+<script>
+(function () {
+  "use strict";
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = a;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t = (t + Math.imul(t ^ (t >>> 7), t | 61)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  function hashString(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+
+  const INTERVAL_SETS = [
+    [1.0, 2.0, 1.5, 3.0],
+    [1.0, 1.2599, 1.4983, 2.0],
+    [1.0, 1.1892, 1.4142, 1.5874],
+    [1.0, 1.0595, 1.4142, 1.7818, 1.8877],
+    [1.0, 1.3348, 1.5874, 1.7818],
+  ];
+  const SCALES = [
+    [0, 3, 5, 7, 10],
+    [0, 2, 3, 5, 7, 8, 10],
+    [0, 1, 3, 5, 7, 8, 10],
+    [0, 2, 4, 6, 8, 10],
+    [0, 1, 4, 6, 7, 10],
+  ];
+  const WAVES = ['sine', 'triangle', 'sawtooth'];
+
+  let ctx = null, masterGain = null, lp = null, saturator = null, reverb = null;
+  let subDroneOscs = [], clusterVoices = [];
+  let noiseBedGain = null, noiseBedFilter = null, noiseBedSource = null;
+  let sig = null, driftTimer = null, melodyTimer = null, melodyNextTime = 0;
+  let rng = mulberry32(1);
+  let playing = false;
+
+  const pick = (arr) => arr[Math.floor(rng() * arr.length)];
+
+  function createSaturator(amount) {
+    const ws = ctx.createWaveShaper();
+    const samples = 1024;
+    const curve = new Float32Array(samples);
+    for (let i = 0; i < samples; i++) { const x = (i * 2) / samples - 1; curve[i] = Math.tanh(x * amount) / Math.tanh(amount); }
+    ws.curve = curve; ws.oversample = '2x';
+    return ws;
+  }
+  function createReverbImpulse(convolver, duration, decay) {
+    const length = ctx.sampleRate * duration;
+    const impulse = ctx.createBuffer(2, length, ctx.sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const d = impulse.getChannelData(ch);
+      for (let i = 0; i < length; i++) { const t = i / length; d[i] = (rng() * 2 - 1) * Math.pow(1 - t, decay) * (1 - t * 0.5); }
+    }
+    convolver.buffer = impulse;
+  }
+
+  function ensureGraph() {
+    if (ctx) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    ctx = new AC();
+    if (ctx.state === 'suspended') ctx.resume();
+    masterGain = ctx.createGain(); masterGain.gain.value = 0.0001;
+    saturator = createSaturator(18);
+    lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; lp.Q.value = 0.7;
+    reverb = ctx.createConvolver();
+    masterGain.connect(saturator); saturator.connect(lp); lp.connect(reverb); reverb.connect(ctx.destination);
+  }
+
+  // Siembra la pieza: reverb + firma deterministas a partir del número de pieza.
+  function seedPiece(pieceNum) {
+    rng = mulberry32(hashString('huaca-' + pieceNum));
+    createReverbImpulse(reverb, 8.0, 4.0);
+    regenerateSignature();
+  }
+
+  function regenerateSignature() {
+    const subCount = 1 + Math.floor(rng() * 3);
+    const subRoots = [];
+    for (let i = 0; i < subCount; i++) subRoots.push(28 + rng() * 62);
+    const clusterBase = 70 + rng() * 130;
+    const intervalSet = pick(INTERVAL_SETS);
+    const clusterCount = 3 + Math.floor(rng() * 4);
+    const clusterRatios = [];
+    for (let i = 0; i < clusterCount; i++) {
+      const r = intervalSet[Math.floor(rng() * intervalSet.length)];
+      clusterRatios.push(r * (1 + (rng() - 0.5) * 0.01));
+    }
+    sig = {
+      subCount, subRoots, subWave: rng() < 0.5 ? 'sine' : 'triangle',
+      clusterBase, clusterWave: pick(WAVES), clusterRatios,
+      clusterLfoFreq: 0.02 + rng() * 0.14,
+      baseCutoff: 450 + rng() * 2200, density: 0.4 + rng() * 0.6,
+      noiseType: rng() < 0.5 ? 'pink' : 'white',
+      noiseFilterType: pick(['bandpass', 'lowpass', 'highpass']),
+      noiseFreq: 200 + rng() * 1800,
+      melodyRootMidi: 38 + Math.floor(rng() * 22),
+      melodyScale: pick(SCALES), melodyTempo: 0.4 + rng() * 0.6,
+    };
+  }
+
+  function startSubDrone() {
+    for (let i = 0; i < sig.subRoots.length; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = sig.subWave;
+      osc.frequency.value = sig.subRoots[i];
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = 0.05 + rng() * 0.08;
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 0.4 + rng() * 0.4;
+      lfo.connect(lfoGain); lfoGain.connect(osc.frequency);
+      const gain = ctx.createGain();
+      gain.gain.value = 0.14 + rng() * 0.08;
+      osc.connect(gain); gain.connect(masterGain);
+      osc.start(); lfo.start();
+      subDroneOscs.push(osc);
+    }
+  }
+  function startCluster() {
+    for (let i = 0; i < sig.clusterRatios.length; i++) {
+      const osc = ctx.createOscillator();
+      osc.type = sig.clusterWave;
+      osc.frequency.value = sig.clusterBase * sig.clusterRatios[i];
+      const lfo = ctx.createOscillator();
+      lfo.type = 'sine'; lfo.frequency.value = sig.clusterLfoFreq * (0.6 + rng() * 0.8);
+      const lfoGain = ctx.createGain();
+      lfoGain.gain.value = 0.03 + rng() * 0.04;
+      lfo.connect(lfoGain);
+      const voiceGain = ctx.createGain();
+      voiceGain.gain.value = 0.04 + rng() * 0.03;
+      lfoGain.connect(voiceGain.gain);
+      const panner = ctx.createStereoPanner();
+      panner.pan.value = (i / sig.clusterRatios.length - 0.5) * 1.8;
+      osc.connect(voiceGain); voiceGain.connect(panner); panner.connect(masterGain);
+      osc.start(); lfo.start();
+      clusterVoices.push({ osc, voiceGain, lfo, panner });
+    }
+  }
+  function startNoiseBed() {
+    const bufferSize = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    if (sig.noiseType === 'pink') {
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < bufferSize; i++) {
+        const white = rng() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.96900 * b2 + white * 0.1538520;
+        b3 = 0.86650 * b3 + white * 0.3104856;
+        b4 = 0.55000 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.0168980;
+        data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+        b6 = white * 0.115926;
+      }
+    } else {
+      for (let i = 0; i < bufferSize; i++) data[i] = rng() * 2 - 1;
+    }
+    noiseBedSource = ctx.createBufferSource();
+    noiseBedSource.buffer = buffer;
+    noiseBedSource.loop = true;
+    noiseBedFilter = ctx.createBiquadFilter();
+    noiseBedFilter.type = sig.noiseFilterType;
+    noiseBedFilter.frequency.value = sig.noiseFreq;
+    noiseBedFilter.Q.value = 1.2;
+    noiseBedGain = ctx.createGain();
+    noiseBedGain.gain.value = 0.02;
+    noiseBedSource.connect(noiseBedFilter);
+    noiseBedFilter.connect(noiseBedGain);
+    noiseBedGain.connect(masterGain);
+    noiseBedSource.start();
+  }
+  function playMelodyNote(freq, time, dur) {
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    osc.frequency.value = freq;
+    const filt = ctx.createBiquadFilter();
+    filt.type = 'lowpass'; filt.frequency.value = 900 + rng() * 1500; filt.Q.value = 1.0;
+    const g = ctx.createGain();
+    const peak = 0.05 + rng() * 0.05;
+    g.gain.setValueAtTime(0.0001, time);
+    g.gain.exponentialRampToValueAtTime(peak, time + 0.2);
+    g.gain.exponentialRampToValueAtTime(0.0001, time + dur);
+    const pan = ctx.createStereoPanner();
+    pan.pan.value = (rng() - 0.5) * 1.3;
+    osc.connect(filt); filt.connect(g); g.connect(pan); pan.connect(masterGain);
+    osc.start(time); osc.stop(time + dur + 0.05);
+  }
+  function melodyScheduler() {
+    if (!ctx) return;
+    while (melodyNextTime < ctx.currentTime + 0.15) {
+      const degree = sig.melodyScale[Math.floor(rng() * sig.melodyScale.length)];
+      const octave = (Math.floor(rng() * 3) - 1) * 12;
+      const midi = sig.melodyRootMidi + degree + octave;
+      const freq = 440 * Math.pow(2, (midi - 69) / 12);
+      const dur = 1.2 + rng() * 2.8;
+      playMelodyNote(freq, melodyNextTime, dur);
+      melodyNextTime += sig.melodyTempo * (0.6 + rng() * 1.4);
+    }
+  }
+  function autonomousDrift() {
+    if (!ctx || !lp) return;
+    const now = ctx.currentTime;
+    lp.frequency.setTargetAtTime(350 + rng() * 2600, now, 2.5);
+    if (noiseBedFilter) noiseBedFilter.frequency.setTargetAtTime(180 + rng() * 2200, now, 2.5);
+  }
+
+  function startLayers() {
+    startSubDrone();
+    startCluster();
+    startNoiseBed();
+    melodyNextTime = ctx.currentTime + 0.4;
+    melodyTimer = setInterval(melodyScheduler, 80);
+    driftTimer = setInterval(autonomousDrift, 3000);
+  }
+  function stopLayers() {
+    clearInterval(driftTimer);
+    clearInterval(melodyTimer);
+    subDroneOscs.forEach((o) => { try { o.stop(); } catch (e) {} });
+    clusterVoices.forEach((v) => { try { v.osc.stop(); v.lfo.stop(); } catch (e) {} });
+    if (noiseBedSource) { try { noiseBedSource.stop(); } catch (e) {} }
+    subDroneOscs = [];
+    clusterVoices = [];
+    noiseBedSource = null;
+  }
+  function fadeIn(seconds) {
+    const t = ctx.currentTime;
+    masterGain.gain.cancelScheduledValues(t);
+    masterGain.gain.setValueAtTime(0.0001, t);
+    masterGain.gain.exponentialRampToValueAtTime(0.45, t + seconds);
+  }
+
+  function start(pieceNum) {
+    ensureGraph();
+    if (!ctx) return;
+    if (playing) return;
+    seedPiece(pieceNum);
+    startLayers();
+    fadeIn(2.5);
+    playing = true;
+  }
+
+  function switchTo(pieceNum) {
+    ensureGraph();
+    if (!ctx) return;
+    if (!playing) { start(pieceNum); return; }
+    const now = ctx.currentTime;
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+    masterGain.gain.setTargetAtTime(0.0001, now, 0.16);
+    setTimeout(() => {
+      if (!ctx) return;
+      stopLayers();
+      seedPiece(pieceNum);
+      startLayers();
+      fadeIn(1.2);
+    }, 900);
+  }
+
+  window.HuacaAudio = { start, switchTo };
+})();
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+// Cinco cielos (HDRI equirectangulares MiniMax) embebidos en base64.
+const SKIES = __SKIES_JSON__;
+
+// Cinco mensajes de la era testnet de Huaca (versión anterior, distintos de mainnet).
+const TEXTS = [
+  "Kilómetros de agua: la odisea de vivir sin grifo cerca de Medellín. El agua se convirtió en un bien tan valioso que algunos habitantes la comparan con el oro.",
+  "La “bomba de tiempo” que tiene el Valle de Aburrá en sus laderas: más de 65 puntos críticos y 35 muertos este año. El deslizamiento ocurrido en Granizal, en límites entre Bello y Medellín, es considerado el más grande en la historia reciente del Valle de Aburrá.",
+  "Más de 100 indígenas Emberá Katío llegaron a Medellín tras huir de la violencia en Chocó. La Defensoría alertó por otro desplazamiento de 90 familias tras un ataque con explosivos lanzados desde un dron.",
+  "Seis especies de árboles serían claves para combatir la contaminación del aire en Medellín, según estudio de la UdeA. Investigadores de la UdeA estudiaron seis especies que tienen cualidades relacionadas con la calidad del aire.",
+  "La calidad del aire en el Valle de Aburrá está muy por debajo de lo exigido por la OMS; en 2018 y 2019 Medellín registró los peores picos de contaminación, una crisis que impulsó una mayor movilización ciudadana.",
+];
+
+// === Fuente 5x7 de Huaca (buildGlyphSet) ===
+const FONT = {
+  " ": [".....",".....",".....",".....",".....",".....","....."],
+  "A": ["..1..",".1.1.","1...1","11111","1...1","1...1","1...1"],
+  "B": ["1111.","1...1","1...1","1111.","1...1","1...1","1111."],
+  "C": [".1111","1....","1....","1....","1....","1....",".1111"],
+  "D": ["1111.","1...1","1...1","1...1","1...1","1...1","1111."],
+  "E": ["11111","1....","1....","111..","1....","1....","11111"],
+  "F": ["11111","1....","1....","111..","1....","1....","1...."],
+  "G": [".1111","1....","1....","1.111","1...1","1...1",".1111"],
+  "H": ["1...1","1...1","1...1","11111","1...1","1...1","1...1"],
+  "I": ["11111","..1..","..1..","..1..","..1..","..1..","11111"],
+  "J": ["11111","...1.","...1.","...1.","...1.","1..1.",".11.."],
+  "K": ["1...1","1..1.","1.1..","11...","1.1..","1..1.","1...1"],
+  "L": ["1....","1....","1....","1....","1....","1....","11111"],
+  "M": ["1...1","11.11","1.1.1","1.1.1","1...1","1...1","1...1"],
+  "N": ["1...1","11..1","1.1.1","1.1.1","1..11","1...1","1...1"],
+  "O": [".111.","1...1","1...1","1...1","1...1","1...1",".111."],
+  "P": ["1111.","1...1","1...1","1111.","1....","1....","1...."],
+  "Q": [".111.","1...1","1...1","1...1","1.1.1","1..1.",".11.1"],
+  "R": ["1111.","1...1","1...1","1111.","1.1..","1..1.","1...1"],
+  "S": [".1111","1....","1....",".111.","....1","....1","1111."],
+  "T": ["11111","..1..","..1..","..1..","..1..","..1..","..1.."],
+  "U": ["1...1","1...1","1...1","1...1","1...1","1...1",".111."],
+  "V": ["1...1","1...1","1...1","1...1","1...1",".1.1.","..1.."],
+  "W": ["1...1","1...1","1...1","1.1.1","1.1.1","11.11","1...1"],
+  "X": ["1...1","1...1",".1.1.","..1..",".1.1.","1...1","1...1"],
+  "Y": ["1...1","1...1",".1.1.","..1..","..1..","..1..","..1.."],
+  "Z": ["11111","....1","...1.","..1..",".1...","1....","11111"],
+  "Ñ": ["..1..","1...1","11..1","1.1.1","1..11","1...1","1...1"],
+  "0": [".111.","1...1","1..11","1.1.1","11..1","1...1",".111."],
+  "1": ["..1..",".11..","..1..","..1..","..1..","..1..",".111."],
+  "2": [".111.","1...1","....1","...1.","..1..",".1...","11111"],
+  "3": [".111.","1...1","....1","..11.","....1","1...1",".111."],
+  "4": ["...1.","..11.",".1.1.","1..1.","11111","...1.","...1."],
+  "5": ["11111","1....","1....","1111.","....1","1...1",".111."],
+  "6": [".111.","1....","1....","1111.","1...1","1...1",".111."],
+  "7": ["11111","....1","...1.","..1..",".1...",".1...",".1..."],
+  "8": [".111.","1...1","1...1",".111.","1...1","1...1",".111."],
+  "9": [".111.","1...1","1...1",".1111","....1","....1",".111."],
+  ",": [".....",".....",".....",".....",".....","..1..",".1..."],
+  ".": [".....",".....",".....",".....",".....",".....","..1.."],
+  ":": [".....","..1..","..1..",".....","..1..","..1..","....."],
+  "!": ["..1..","..1..","..1..","..1..","..1..",".....","..1.."],
+  "?": [".111.","1...1","....1","...1.","..1..",".1...","..1.."],
+  "$": ["..1..",".1111","1.1..",".111.","..1.1","1111.","..1.."],
+  "%": ["11..1","11.1.","..1..",".1...","..1..",".1.11","1..11"],
+  "#": ["..1.1","..1.1","11111","..1.1","11111","..1.1","..1.1"],
+  "Á": ["..1..",".1.1.","..1..",".1.1.","1...1","11111","1...1"],
+  "É": ["..1..","1....","1....","111..","1....","1....","11111"],
+  "Í": [".1...","..1..","..1..","..1..","..1..","..1..","11111"],
+  "Ó": [".1...",".111.","1...1","1...1","1...1","1...1",".111."],
+  "Ú": [".1...","1...1","1...1","1...1","1...1","1...1",".111."],
+  '"': ["..1.1","..1.1",".....",".....",".....",".....","....."],
+  "'": ["..1..","..1..",".....",".....",".....",".....","....."],
+  ";": [".....",".....","..1..",".....",".....","..1..",".1..."],
+  "-": [".....",".....",".....",".111.",".....",".....","....."],
+  "(": ["...1.","..1..","..1..","..1..","..1..","..1..","...1."],
+  ")": [".1...","..1..","..1..","..1..","..1..","..1..",".1..."],
+  "¿": ["..1..","...1.","..1..",".1.1.",".1...","1....",".111."],
+  "¡": ["..1..",".....","..1..","..1..","..1..","..1..","..1.."],
+  "Ü": ["1.1.1","1.1.1","1...1","1...1","1...1","1...1",".111."],
+};
+
+function normalizeForVoxel(text) {
+  return text
+    .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g, '"')
+    .replace(/[\u2018\u2019\u201A\u02BB]/g, "'")
+    .replace(/[\u2013\u2014\u2011\u2012\u2212]/g, "-")
+    .replace(/\u2026/g, "...")
+    .replace(/\u00A0/g, " ")
+    .replace(/[\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC]/g, (m) => m.toUpperCase())
+    .replace(/\u00F1/g, "\u00D1")
+    .replace(/[^\u00BF\u00A1A-Za-z0-9 .,;:!?'"()\-\u00C1\u00C9\u00CD\u00D3\u00DA\u00D1\u00DC$%#\u00E1\u00E9\u00ED\u00F3\u00FA\u00F1\u00FC\u00BF\u00A1]/g, "?");
+}
+
+function wordWrap(text, maxChars) {
+  const words = text.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  for (const w of words) {
+    const candidate = (current ? current + " " : "") + w;
+    if (candidate.length > maxChars && current) { lines.push(current); current = w; }
+    else { current = candidate; }
+  }
+  if (current) lines.push(current);
+  return lines;
+}
+
+function wrappedLines(text) {
+  const targetLines = 14;
+  const maxLinesHardCap = 22;
+  const maxCharsPerLine = 25;
+  const charsPerLine = Math.max(8, Math.min(maxCharsPerLine, Math.ceil(text.length / targetLines)));
+  const all = wordWrap(text, charsPerLine);
+  if (all.length <= maxLinesHardCap) return all;
+  return all.slice(0, maxLinesHardCap);
+}
+
+function sampleTextLine(line) {
+  const upper = line.toUpperCase();
+  const charW = 5, charH = 7;
+  const cols = upper.length * (charW + 1);
+  const cells = [];
+  for (let i = 0; i < upper.length; i++) {
+    const ch = upper[i];
+    const pattern = FONT[ch] || FONT["?"];
+    for (let row = 0; row < charH; row++) {
+      for (let col = 0; col < charW; col++) {
+        if (pattern[row][col] === "1") cells.push({ x: i * (charW + 1) + col, y: row });
+      }
+    }
+  }
+  return { width: cols, height: charH, pixels: cells };
+}
+
+function sampleTextToVoxelsMultiline(text) {
+  const lines = wrappedLines(normalizeForVoxel(text));
+  const charH = 7;
+  const lineSpacing = charH + 4;
+  const lineVoxels = lines.map((line) => sampleTextLine(line.toUpperCase()));
+  const maxWidth = Math.max(...lineVoxels.map((v) => v.width));
+  const totalHeight = lineVoxels.length * lineSpacing - 4;
+  const pixels = [];
+  for (let li = 0; li < lineVoxels.length; li++) {
+    const lv = lineVoxels[li];
+    const xOffset = Math.floor((maxWidth - lv.width) / 2);
+    for (const p of lv.pixels) pixels.push({ x: p.x + xOffset, y: li * lineSpacing + p.y });
+  }
+  return { width: maxWidth, height: totalHeight, pixels };
+}
+
+function planVoxelLayout(len, voxel) {
+  let cellSize, depth, centerZ, mult;
+  if (len < 30)        { cellSize = 0.45; depth = 5; centerZ = -1.0;  mult = 5; }
+  else if (len < 60)   { cellSize = 0.30; depth = 3; centerZ = -0.5;  mult = 3; }
+  else if (len < 100)  { cellSize = 0.26; depth = 2; centerZ = -0.25; mult = 2; }
+  else if (len < 180)  { cellSize = 0.20; depth = 2; centerZ = -0.20; mult = 2; }
+  else if (len < 260)  { cellSize = 0.16; depth = 2; centerZ = -0.15; mult = 2; }
+  else                 { cellSize = 0.13; depth = 1; centerZ = 0;      mult = 1; }
+  return {
+    cellSize, depth, centerZ,
+    centerX: -voxel.width * cellSize * 0.5,
+    centerY: voxel.height * cellSize * 0.5,
+    voxelCount: voxel.pixels.length * mult,
+  };
+}
+
+// === Escena three.js ===
+const canvas = document.getElementById("three-canvas");
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 500);
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x000000, 0);
+
+const pl = new THREE.PointLight(0xffffff, 2, 0, 0);
+camera.add(pl);
+scene.add(camera);
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(5, 10, 7);
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xfff5e8, 0.4);
+fill.position.set(-5, 3, -5);
+scene.add(fill);
+
+let voxelMesh = null;
+let sculptureWidth = 0, sculptureHeight = 0;
+let camDist = 0, camDistMin = 4, camDistMax = 40;
+const fovRad = 50 * Math.PI / 180;
+const margin = 1.5;
+
+function buildVoxel(text) {
+  const voxel = sampleTextToVoxelsMultiline(text);
+  const layout = planVoxelLayout(text.length, voxel);
+  sculptureWidth = voxel.width * layout.cellSize;
+  sculptureHeight = voxel.height * layout.cellSize;
+
+  if (voxelMesh) {
+    scene.remove(voxelMesh);
+    voxelMesh.geometry.dispose();
+    voxelMesh.material.dispose();
+  }
+  const geom = new THREE.BoxGeometry(layout.cellSize, layout.cellSize, layout.cellSize);
+  const mat = new THREE.MeshStandardMaterial({ color: 0xf5f0e8, roughness: 0.5, metalness: 0.0 });
+  voxelMesh = new THREE.InstancedMesh(geom, mat, layout.voxelCount);
+  const m = new THREE.Matrix4();
+  let i = 0;
+  for (const p of voxel.pixels) {
+    for (let d = 0; d < layout.depth; d++) {
+      if (i >= layout.voxelCount) break;
+      m.makeTranslation(
+        layout.centerX + p.x * layout.cellSize,
+        layout.centerY - p.y * layout.cellSize,
+        layout.centerZ + (d - layout.depth / 2) * layout.cellSize,
+      );
+      voxelMesh.setMatrixAt(i++, m);
+    }
+  }
+  voxelMesh.count = i;
+  voxelMesh.instanceMatrix.needsUpdate = true;
+  scene.add(voxelMesh);
+  fitToViewport();
+}
+
+function fitToViewport() {
+  const w = window.innerWidth, h = window.innerHeight;
+  const aspect = w / h;
+  camera.aspect = aspect;
+  camera.updateProjectionMatrix();
+  const hFov = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
+  const distForWidth = (sculptureWidth * 0.5 * margin) / Math.tan(hFov / 2);
+  const distForHeight = (sculptureHeight * 0.5 * margin) / Math.tan(fovRad / 2);
+  camDist = Math.max(distForWidth, distForHeight, 8);
+  camDistMin = camDist * 0.4;
+  camDistMax = camDist * 2.5;
+  camera.position.set(0, 0, camDist);
+  camera.lookAt(0, 0, 0);
+  renderer.setSize(w, h);
+}
+
+// === Interacción: tap = cambiar + audio, drag = rotar, wheel = zoom ===
+const IDLE_MS = 5000;
+const AUTO_YAW_SPEED = 0.0025;
+let isDragging = false, lastX = 0, downX = 0, downY = 0, downT = 0, moved = 0;
+let lastInteraction = performance.now();
+let targetScale = 1;
+
+canvas.addEventListener("pointerdown", (e) => {
+  isDragging = true; lastX = e.clientX; downX = e.clientX; downY = e.clientY; moved = 0;
+  downT = performance.now();
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+  lastInteraction = performance.now();
+});
+canvas.addEventListener("pointermove", (e) => {
+  lastInteraction = performance.now();
+  if (!isDragging) return;
+  const dx = e.clientX - lastX;
+  moved = Math.max(moved, Math.abs(e.clientX - downX) + Math.abs(e.clientY - downY));
+  if (voxelMesh) voxelMesh.rotation.y += dx * 0.005;
+  lastX = e.clientX;
+});
+canvas.addEventListener("pointerup", (e) => {
+  const wasTap = isDragging && moved < 6 && (performance.now() - downT) < 500;
+  isDragging = false;
+  try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+  lastInteraction = performance.now();
+  if (wasTap) advance();
+});
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const delta = e.deltaY * 0.0015;
+  camDist = Math.max(camDistMin, Math.min(camDistMax, camDist + delta * camDist));
+  camera.position.set(0, 0, camDist);
+  camera.lookAt(0, 0, 0);
+  lastInteraction = performance.now();
+}, { passive: false });
+
+let current = 0;
+let transitioning = false;
+let audioStarted = false;
+
+function advance() {
+  if (transitioning) return;
+  transitioning = true;
+
+  current = (current + 1) % TEXTS.length;
+
+  // sky crossfade
+  const a = document.getElementById("sky-a");
+  const b = document.getElementById("sky-b");
+  const active = a.classList.contains("active") ? a : b;
+  const next = (active === a) ? b : a;
+  next.style.backgroundImage = "url('" + SKIES[current] + "')";
+  void next.offsetWidth;
+  next.classList.add("active");
+  active.classList.remove("active");
+
+  buildVoxel(TEXTS[current]);
+  targetScale = 0.6;
+
+  // audio: primera vez = start (desbloquea el gesto), luego crossfade
+  if (!audioStarted) {
+    audioStarted = true;
+    HuacaAudio.start(current + 1);
+  } else {
+    HuacaAudio.switchTo(current + 1);
+  }
+
+  setTimeout(() => { transitioning = false; }, 450);
+}
+
+
+let pulse = 0;
+function animate() {
+  const now = performance.now();
+  pulse += 0.01;
+  const breath = 1 + Math.sin(pulse) * 0.04;
+  const k = 0.12;
+  targetScale = targetScale + (1 - targetScale) * k;
+  const s = breath * (0.85 + 0.15 * targetScale);
+  if (voxelMesh) voxelMesh.scale.set(s, s, s);
+
+  if (!isDragging && (now - lastInteraction) > IDLE_MS && voxelMesh) {
+    voxelMesh.rotation.y += AUTO_YAW_SPEED;
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(animate);
+}
+
+buildVoxel(TEXTS[0]);
+document.getElementById("sky-a").style.backgroundImage = "url('" + SKIES[0] + "')";
+fitToViewport();
+window.addEventListener("resize", fitToViewport);
+if (typeof ResizeObserver !== "undefined") new ResizeObserver(fitToViewport).observe(document.body);
+animate();
+</script>
+</body>
+</html>

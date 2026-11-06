@@ -2,15 +2,19 @@
   "network": "sepolia",
   "chainId": 11155111,
   "deployer": "0x1A49138cCb61C50D72A44a299F6C74c690f6c67f",
-  "timestamp": "2026-08-26T02:47:11.595Z",
+  "treasury": "0xE99c3Ecbc68868602CF558325BC6ab6A9807dFa9",
+  "timestamp": "2026-08-31T01:49:52.964Z",
   "contracts": {
     "MuseoWeirdNFT": {
-      "address": "0xFe9aC9343296951f12bd4CD0bAE678F0203c9934",
-      "auctionContract": "0x548DCE9dD67442be7cC6C48c44319c1FBcCfD314"
+      "address": "0x6d4Dce13141D203f10Ec337307B6A8Ba44B9fD36",
+      "auctionContract": "0x80a27Bf02407896cbC4a199176Ba9b6a70A3574A",
+      "royaltyReceiver": "0x80a27Bf02407896cbC4a199176Ba9b6a70A3574A",
+      "royaltyFeeBps": 1500
     },
     "MuseoWeirdAuction": {
-      "address": "0x548DCE9dD67442be7cC6C48c44319c1FBcCfD314"
+      "address": "0x80a27Bf02407896cbC4a199176Ba9b6a70A3574A",
+      "treasury": "0xE99c3Ecbc68868602CF558325BC6ab6A9807dFa9"
     }
   },
-  "explorerUrl": "https://sepolia.etherscan.io/address/0xFe9aC9343296951f12bd4CD0bAE678F0203c9934"
+  "explorerUrl": "https://sepolia.etherscan.io/address/0x6d4Dce13141D203f10Ec337307B6A8Ba44B9fD36"
 }

@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Huaca · Onboarding Flores v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #000000;
+    --text-secondary: rgba(0, 0, 0, 0.55);
+    --border: rgba(0, 0, 0, 0.1);
+    --border-strong: rgba(0, 0, 0, 0.2);
+    --bid: #166534;
+    --warn: #c2410c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+  .ob-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 99999; overflow-y: auto; overflow-x: hidden; height: 100vh; scroll-behavior: smooth; }
+  .ob-overlay.hidden { display: none; }
+  .ob-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--border); z-index: 100000; }
+  .ob-progress-bar { height: 100%; background: var(--bid); width: 0%; transition: width 0.1s linear; }
+  .ob-topbar { position: fixed; top: 16px; right: 16px; z-index: 100001; }
+  .ob-close-btn { background: transparent; border: 1px solid var(--border-strong); color: var(--text); padding: 8px 14px; font-family: inherit; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; transition: all 0.15s; }
+  .ob-close-btn:hover { background: var(--text); color: #fff; }
+  .ob-toggle { position: fixed; bottom: 24px; left: 24px; z-index: 100001; font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); padding: 8px 12px; border: 1px solid var(--border); }
+  .ob-toggle input { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; border: 1px solid var(--border-strong); cursor: pointer; position: relative; margin: 0; }
+  .ob-toggle input:checked { background: var(--bid); border-color: var(--bid); }
+  .ob-toggle input:checked::after { content: '\2713'; position: absolute; top: -2px; left: 1px; color: #fff; font-size: 0.7rem; }
+  .ob-toggle:hover { color: var(--text); }
+
+  .ob-section { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: clamp(60px, 10vh, 100px) clamp(24px, 6vw, 80px); border-bottom: 1px solid var(--border); position: relative; gap: clamp(20px, 4vw, 60px); }
+  .ob-section.hero { display: flex; flex-direction: column; justify-content: center; text-align: left; }
+
+  .ob-flor-wrap { width: 100%; max-width: 420px; aspect-ratio: 1; margin: 0 auto; display: flex; align-items: center; justify-content: center; }
+  .ob-flor-wrap svg { width: 100%; height: 100%; overflow: visible; }
+
+  .flor-anim .petal { transform: scale(0); transform-origin: 50% 50%; opacity: 0; }
+  .flor-anim .bud { transform: scale(0.3); transform-origin: 50% 100%; opacity: 0; }
+  .flor-anim .sepal { opacity: 0; }
+  .flor-anim .flor-path { stroke-dashoffset: 800; opacity: 0; stroke-dasharray: 800; }
+  .flor-anim .center { opacity: 0; }
+  .flor-anim .stem { stroke-dashoffset: 400; stroke-dasharray: 400; }
+  .flor-anim .leaf { transform: scale(0); transform-origin: 50% 50%; opacity: 0; }
+
+  .ob-text { max-width: 600px; }
+  .ob-section .num { font-size: clamp(3rem, 8vw, 6rem); font-weight: 700; line-height: 0.85; letter-spacing: -0.04em; color: var(--bid); opacity: 0.18; margin-bottom: 12px; }
+  .ob-section h2 { font-size: clamp(1.8rem, 4.5vw, 3.2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 20px; }
+  .ob-section p { font-size: clamp(0.95rem, 1.3vw, 1.15rem); line-height: 1.5; color: var(--text-secondary); margin-bottom: 12px; max-width: 540px; }
+  .ob-section p strong { color: var(--text); font-weight: 600; }
+  .ob-hero .lede { font-size: clamp(1.2rem, 2vw, 1.7rem); font-weight: 300; color: var(--text); max-width: 720px; line-height: 1.4; margin-top: 16px; }
+  .ob-hero .lede em { font-style: normal; font-weight: 700; color: var(--bid); }
+  .step-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 20px; }
+  .step-card { border: 1px solid var(--border); padding: 14px 14px; }
+  .step-card .step-num { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); margin-bottom: 6px; }
+  .step-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; }
+  .step-card p { font-size: 0.78rem; line-height: 1.4; color: var(--text-secondary); margin: 0; }
+  .ob-cta .final { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 700; margin-bottom: 14px; line-height: 1.1; }
+  .ob-cta .final em { font-style: normal; color: var(--bid); }
+  .ob-cta button.entrar { background: var(--text); color: #fff; border: none; padding: 16px 36px; font-family: inherit; font-size: 0.95rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; margin-top: 18px; transition: background 0.2s; }
+  .ob-cta button.entrar:hover { background: var(--bid); }
+  .scroll-hint { position: absolute; bottom: 24px; right: 32px; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); opacity: 0.6; }
+  .scroll-hint::after { content: '\2193'; display: block; font-size: 1.2rem; margin-top: 6px; animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(6px); opacity: 1; } }
+  @media (max-width: 720px) { .ob-section { grid-template-columns: 1fr; } .ob-flor-wrap { max-width: 240px; } }
+</style>
+</head>
+<body>
+
+<div class="ob-overlay" id="obOverlay">
+
+  <div class="ob-progress"><div class="ob-progress-bar" id="obProgress"></div></div>
+  <div class="ob-topbar"><button class="ob-close-btn" id="obClose">&times; Saltar</button></div>
+
+  <!-- 00 · HERO -->
+  <section class="ob-section hero ob-hero">
+    <div class="num" data-anim="num">00</div>
+    <h2 data-anim="title">Lo raro<br/>es pol&iacute;tico.</h2>
+    <p class="lede" data-anim="lede">Esto es <em>Huaca, Sistemas M&aacute;gicos</em>: un archivo vivo de hechos an&oacute;malos. Cada pieza es un voxel generado por IA, subastado en Sepolia, registrado en blockchain.</p>
+    <p data-anim="meta" style="margin-top:32px; font-size:0.75rem; letter-spacing:2px; text-transform:uppercase; color: var(--text-secondary);">Antes de Pujar &middot; 90 segundos</p>
+    <div class="scroll-hint" data-anim="hint">scroll</div>
+  </section>
+
+  <!-- 01 · HELECHO generativo -->
+  <section class="ob-section">
+    <div class="ob-flor-wrap flor-anim" data-flor="helecho"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">01</div>
+      <h2 data-anim="title">Qu&eacute; est&aacute;s viendo.</h2>
+      <p data-anim="p">Un <strong>scraper aut&oacute;nomo</strong> busca hechos an&oacute;malos en redes sociales. Un LLM decide cu&aacute;les merecen preservarse. Cada hecho se transforma en un voxel 3D con su propia paleta.</p>
+      <p data-anim="p">El voxel se sube a IPFS, se acu&ntilde;a como NFT en Sepolia y se subasta en ETH de prueba.</p>
+    </div>
+  </section>
+
+  <!-- 02 · BROTE generativo -->
+  <section class="ob-section">
+    <div class="ob-flor-wrap flor-anim" data-flor="brote"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">02</div>
+      <h2 data-anim="title">Para pujar,<br/>4 pasos.</h2>
+      <p data-anim="p">No necesitas saber de crypto. Esto es una <strong>red de prueba</strong>: el ETH no es real, solo pagas gas (fracciones de centavos).</p>
+      <div class="step-grid" data-anim="grid">
+        <div class="step-card"><div class="step-num">01</div><h3>WALLET</h3><p>Instala MetaMask, crea cuenta, guarda tu frase seed en papel.</p></div>
+        <div class="step-card"><div class="step-num">02</div><h3>FONDOS</h3><p>Estamos en Sepolia. Copia tu address, p&eacute;galo en un faucet.</p></div>
+        <div class="step-card"><div class="step-num">03</div><h3>PUJAR</h3><p>CONNECT WALLET, espera el verde, click en PUJAR, confirma.</p></div>
+        <div class="step-card"><div class="step-num">04</div><h3>LIQUIDAR</h3><p>Cuando termina el tiempo, click SETTLE. Si ganaste, el ETH vuelve y el NFT queda tuyo.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · AZUCENA generativa -->
+  <section class="ob-section">
+    <div class="ob-flor-wrap flor-anim" data-flor="azucena"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">03</div>
+      <h2 data-anim="title">Lo que <em style="color:#c2410c">nunca</em><br/>debes hacer.</h2>
+      <p data-anim="p"><strong>Nunca</strong> compartas tu frase seed. Nadie leg&iacute;timo te la va a pedir.</p>
+      <p data-anim="p"><strong>Nunca</strong> apruebes una transacci&oacute;n que no entiendes.</p>
+      <p data-anim="p"><strong>Nunca</strong> uses la red principal (Mainnet) por accidente. Verifica que MetaMask diga "Sepolia".</p>
+    </div>
+  </section>
+
+  <!-- 04 · ORQUÍDEA generativa asimétrica — CTA -->
+  <section class="ob-section ob-cta">
+    <div class="ob-flor-wrap flor-anim" data-flor="orquidea"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">04</div>
+      <h2 class="final" data-anim="title">Listo. <em>Lo raro te espera.</em></h2>
+      <p data-anim="p">5 secciones, una flor. Lo que era semilla ahora es orqu&iacute;dea.</p>
+      <button class="entrar" data-anim="btn" id="obEnter">Entrar a la galer&iacute;a &rarr;</button>
+    </div>
+  </section>
+
+  <label class="ob-toggle"><input type="checkbox" id="obNoShow" /><span>No mostrar de nuevo</span></label>
+</div>
+
+<script>
+(function(){
+  if (typeof window === 'undefined') return;
+  const ob = document.getElementById('obOverlay');
+  if (!ob) return;
+  const bar = document.getElementById('obProgress');
+  const toggle = document.getElementById('obNoShow');
+  const SKIP_KEY = 'huaca-ob-skip-v1';
+
+  try { if (localStorage.getItem(SKIP_KEY) === '1') ob.classList.add('hidden'); } catch(e) {}
+
+  function close(){
+    try { if (toggle && toggle.checked) localStorage.setItem(SKIP_KEY, '1'); } catch(e) {}
+    ob.classList.add('hidden');
+  }
+  function open(){
+    ob.classList.remove('hidden');
+    ob.scrollTop = 0;
+    bar.style.width = '0%';
+  }
+
+  document.getElementById('obClose').addEventListener('click', close);
+  document.getElementById('obEnter').addEventListener('click', close);
+
+  ob.addEventListener('scroll', () => {
+    if (ob.scrollHeight <= ob.clientHeight) return;
+    bar.style.width = (ob.scrollTop / (ob.scrollHeight - ob.clientHeight) * 100) + '%';
+  });
+
+  // ====== RANDOM UTIL ======
+  function rand(min, max) { return Math.random() * (max - min) + min; }
+  function randInt(min, max) { return Math.floor(rand(min, max + 1)); }
+  function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+  // ====== SVG HELPERS ======
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  function svgRoot() {
+    const s = document.createElementNS(SVG_NS, 'svg');
+    s.setAttribute('viewBox', '0 0 200 240');
+    s.setAttribute('xmlns', SVG_NS);
+    return s;
+  }
+  function petal(parent, cx, cy, angle, length, width, fill) {
+    const p = document.createElementNS(SVG_NS, 'path');
+    const rad = angle * Math.PI / 180;
+    const tipX = cx + Math.cos(rad) * length;
+    const tipY = cy + Math.sin(rad) * length;
+    const sX1 = cx + Math.cos(rad + Math.PI/2) * width;
+    const sY1 = cy + Math.sin(rad + Math.PI/2) * width;
+    const sX2 = cx + Math.cos(rad - Math.PI/2) * width;
+    const sY2 = cy + Math.sin(rad - Math.PI/2) * width;
+    const cp1x = sX1 + (tipX - sX1) * 0.5;
+    const cp1y = sY1 + (tipY - sY1) * 0.5;
+    const cp2x = sX2 + (tipX - sX2) * 0.5;
+    const cp2y = sY2 + (tipY - sY2) * 0.5;
+    p.setAttribute('d', `M ${cx} ${cy} C ${cp1x} ${cp1y} ${tipX} ${tipY} ${tipX} ${tipY} C ${cp2x} ${cp2y} ${sX2} ${sY2} ${cx} ${cy} Z`);
+    p.setAttribute('fill', fill);
+    p.setAttribute('opacity', '0.85');
+    p.classList.add('petal');
+    parent.appendChild(p);
+  }
+  function stem(parent, x1, y1, x2, y2, w) {
+    const l = document.createElementNS(SVG_NS, 'line');
+    l.setAttribute('x1', x1); l.setAttribute('y1', y1);
+    l.setAttribute('x2', x2); l.setAttribute('y2', y2);
+    l.setAttribute('stroke', '#166534');
+    l.setAttribute('stroke-width', w || '2');
+    l.classList.add('stem');
+    parent.appendChild(l);
+  }
+  function branchPath(parent, x1, y1, x2, y2) {
+    const p = document.createElementNS(SVG_NS, 'path');
+    // Subtle curve so branches feel organic, not robotic
+    const midX = (x1 + x2) / 2 + rand(-8, 8);
+    const midY = (y1 + y2) / 2 + rand(-4, 4);
+    p.setAttribute('d', `M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}`);
+    p.setAttribute('fill', 'none');
+    p.setAttribute('stroke', '#166534');
+    p.setAttribute('stroke-width', '1.5');
+    p.classList.add('flor-path');
+    parent.appendChild(p);
+    return p;
+  }
+  function leaf(parent, cx, cy, angle, length, width) {
+    const p = document.createElementNS(SVG_NS, 'path');
+    const rad = angle * Math.PI / 180;
+    const tipX = cx + Math.cos(rad) * length;
+    const tipY = cy + Math.sin(rad) * length;
+    p.setAttribute('d', `M ${cx} ${cy} Q ${cx + Math.cos(rad + 0.5) * length * 0.6} ${cy + Math.sin(rad + 0.5) * length * 0.6} ${tipX} ${tipY} Q ${cx + Math.cos(rad - 0.5) * length * 0.6} ${cy + Math.sin(rad - 0.5) * length * 0.6} ${cx} ${cy} Z`);
+    p.setAttribute('fill', '#166534');
+    p.setAttribute('opacity', '0.5');
+    p.classList.add('leaf');
+    parent.appendChild(p);
+  }
+  function center(parent, cx, cy, r, fill) {
+    const c = document.createElementNS(SVG_NS, 'circle');
+    c.setAttribute('cx', cx); c.setAttribute('cy', cy); c.setAttribute('r', r);
+    c.setAttribute('fill', fill || '#000');
+    c.classList.add('center');
+    parent.appendChild(c);
+  }
+
+  // ====== GENERATIVE FLOWER HEADS ======
+  // Each one returns an SVG group ready to be placed at (cx, cy)
+  function makeHelecho(cx, cy, scale) {
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('transform', `translate(${cx} ${cy}) scale(${scale})`);
+    // Spiral frond
+    let d = `M 0 30`;
+    const turns = randInt(3, 6);
+    for (let t = 0; t < turns * Math.PI; t += 0.05) {
+      const r = 2 + t * 2.5;
+      const x = r * Math.cos(t);
+      const y = 30 - r * Math.sin(t) * 0.5;
+      d += ` L ${x.toFixed(2)} ${y.toFixed(2)}`;
+    }
+    const path = document.createElementNS(SVG_NS, 'path');
+    path.setAttribute('d', d);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', '#166534');
+    path.setAttribute('stroke-width', '1.2');
+    path.classList.add('flor-path');
+    g.appendChild(path);
+    center(g, 0, 30, 2, '#166534');
+    return g;
+  }
+
+  function makeBrote(cx, cy, scale) {
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('transform', `translate(${cx} ${cy}) scale(${scale})`);
+    const rx = rand(10, 16);
+    const ry = rand(20, 30);
+    const oval = document.createElementNS(SVG_NS, 'ellipse');
+    oval.setAttribute('cx', 0); oval.setAttribute('cy', 0);
+    oval.setAttribute('rx', rx); oval.setAttribute('ry', ry);
+    oval.setAttribute('fill', '#166534'); oval.setAttribute('opacity', '0.45');
+    oval.classList.add('bud');
+    g.appendChild(oval);
+    // 1-2 sepals
+    const sepalCount = randInt(1, 2);
+    for (let i = 0; i < sepalCount; i++) {
+      const sepal = document.createElementNS(SVG_NS, 'path');
+      const offset = i === 0 ? 0 : rand(-3, 3);
+      sepal.setAttribute('d', `M ${offset} ${-ry - 5} L ${offset} ${ry + 5}`);
+      sepal.setAttribute('stroke', '#166534');
+      sepal.setAttribute('stroke-width', '1');
+      sepal.setAttribute('opacity', '0.6');
+      sepal.classList.add('sepal');
+      g.appendChild(sepal);
+    }
+    return g;
+  }
+
+  function makeAzucena(cx, cy, scale) {
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('transform', `translate(${cx} ${cy}) scale(${scale})`);
+    const petalCount = randInt(8, 14);  // GENERATIVE: 8-14 petals
+    for (let i = 0; i < petalCount; i++) {
+      const baseAngle = (i / petalCount) * 360;
+      const jitter = rand(-8, 8);  // asymmetric angles
+      const length = rand(35, 55);
+      const width = rand(8, 14);
+      petal(g, 0, 0, baseAngle + jitter, length, width, '#166534');
+    }
+    // Inner ring of smaller petals for fullness
+    const innerCount = randInt(3, 6);
+    for (let i = 0; i < innerCount; i++) {
+      const angle = rand(0, 360);
+      const length = rand(15, 25);
+      const width = rand(6, 10);
+      petal(g, 0, 0, angle, length, width, '#166534');
+    }
+    center(g, 0, 0, rand(4, 7), '#000');
+    return g;
+  }
+
+  function makeOrquidea(cx, cy, scale) {
+    const g = document.createElementNS(SVG_NS, 'g');
+    g.setAttribute('transform', `translate(${cx} ${cy}) scale(${scale})`);
+    // Asymmetric layout (NOT evenly distributed angles)
+    const layout = [
+      { angle: -90 + rand(-12, 12), length: rand(60, 75), width: rand(20, 26), color: '#166534' },
+      { angle: 195 + rand(-15, 15), length: rand(50, 65), width: rand(18, 24), color: '#166534' },
+      { angle: 345 + rand(-10, 10), length: rand(55, 70), width: rand(20, 26), color: '#166534' },
+    ];
+    layout.forEach(p => petal(g, 0, 0, p.angle, p.length, p.width, p.color));
+    // 2 small accent petals (orange)
+    petal(g, 0, 0, 165 + rand(-10, 10), rand(32, 42), rand(10, 14), '#c2410c');
+    petal(g, 0, 0, 15 + rand(-10, 10),  rand(32, 42), rand(10, 14), '#c2410c');
+    center(g, 0, 0, rand(4, 6), '#000');
+    return g;
+  }
+
+  // ====== INFLORESCENCE (BRANCH WITH MULTIPLE FLOWER HEADS) ======
+  // Each section gets its own branch with 3-5 flower heads.
+  function makeInflorescencia(types, seed) {
+    const s = svgRoot();
+    // Main trunk
+    const trunkX1 = 100, trunkY1 = 230;
+    const trunkX2 = 100 + rand(-15, 15), trunkY2 = 80;
+    stem(s, trunkX1, trunkY1, trunkX2, trunkY2, '2.5');
+
+    // 1-2 leaves on trunk
+    const leafCount = randInt(2, 4);
+    for (let i = 0; i < leafCount; i++) {
+      const t = rand(0.3, 0.85);
+      const lx = trunkX1 + (trunkX2 - trunkX1) * t;
+      const ly = trunkY1 + (trunkY2 - trunkY1) * t;
+      const side = pick([-1, 1]);
+      leaf(s, lx, ly, side * rand(20, 50), rand(12, 20), rand(6, 10));
+    }
+
+    // Branches: 3-5 of them, each ending in a flower head
+    const branchCount = randInt(3, 5);
+    const trunkLen = Math.hypot(trunkX2 - trunkX1, trunkY2 - trunkY1);
+    for (let i = 0; i < branchCount; i++) {
+      const t = (i + 1) / (branchCount + 1) + rand(-0.05, 0.05);
+      const bx = trunkX1 + (trunkX2 - trunkX1) * t;
+      const by = trunkY1 + (trunkY2 - trunkY1) * t;
+      const side = (i % 2 === 0) ? -1 : 1;
+      const branchLen = rand(25, 50);
+      const tipAngle = side * rand(35, 70);
+      const tipX = bx + Math.cos((tipAngle - 90) * Math.PI / 180) * branchLen;
+      const tipY = by + Math.sin((tipAngle - 90) * Math.PI / 180) * branchLen;
+      branchPath(s, bx, by, tipX, tipY);
+
+      // Flower head at the tip of this branch
+      const type = types[i % types.length];
+      const flScale = rand(0.55, 0.85);
+      let head;
+      if (type === 'helecho') head = makeHelecho(0, 0, flScale);
+      else if (type === 'brote') head = makeBrote(0, 0, flScale);
+      else if (type === 'azucena') head = makeAzucena(0, 0, flScale);
+      else head = makeOrquidea(0, 0, flScale);
+      head.setAttribute('transform', `translate(${tipX} ${tipY}) ${head.getAttribute('transform') || ''}`);
+      s.appendChild(head);
+    }
+
+    // Mark all children with animatable classes (re-collected because heads are appended after init)
+    return s;
+  }
+
+  // Per-section composition: which flower types appear on this branch
+  const SECTION_TYPES = {
+    helecho:   ['helecho', 'helecho', 'brote'],          // 01: mostly fronds + 1 bud
+    brote:     ['brote', 'azucena', 'brote'],             // 02: buds + 1 azucena
+    azucena:   ['azucena', 'azucena', 'brote', 'helecho'],// 03: full azucenas + variety
+    orquidea:  ['orquidea', 'azucena', 'brote', 'helecho', 'orquidea'], // 04: full bloom, asymmetric
+  };
+
+  document.querySelectorAll('[data-flor]').forEach(el => {
+    const types = SECTION_TYPES[el.dataset.flor];
+    if (types) el.appendChild(makeInflorescencia(types, el.dataset.flor));
+  });
+
+  // ====== TEXT REVEALS ======
+  function revealText(entries) {
+    entries.forEach(e => {
+      if (!e.isIntersecting || e.target.dataset.shown) return;
+      const el = e.target;
+      const t = el.dataset.anim;
+      if (typeof anime === 'undefined') {
+        el.style.opacity = '1';
+        el.dataset.shown = '1';
+        return;
+      }
+      if (t === 'num') anime({ targets: el, opacity: [0, 0.18], translateX: [-40, 0], duration: 700, easing: 'easeOutCubic' });
+      else if (t === 'title') anime({ targets: el, opacity: [0, 1], translateY: [30, 0], duration: 800, easing: 'easeOutExpo' });
+      else if (t === 'lede' || t === 'p' || t === 'meta') anime({ targets: el, opacity: [0, 1], translateY: [20, 0], duration: 700, delay: 150, easing: 'easeOutCubic' });
+      else if (t === 'hint') anime({ targets: el, opacity: [0, 0.6], duration: 1200, delay: 600 });
+      else if (t === 'grid') anime({ targets: el.children, opacity: [0, 1], translateY: [24, 0], delay: anime.stagger(80), duration: 600, easing: 'easeOutCubic' });
+      else if (t === 'btn') anime({ targets: el, opacity: [0, 1], scale: [0.95, 1], duration: 800, delay: 200, easing: 'easeOutBack' });
+      el.dataset.shown = '1';
+    });
+  }
+  const textObserver = new IntersectionObserver(revealText, { root: ob, threshold: 0.25 });
+  document.querySelectorAll('[data-anim]').forEach(el => textObserver.observe(el));
+
+  // ====== FLOR BLOOM — PATTERN B (always alive) ======
+  // Per the skill: each entry resets and replays. The animation is created with autoplay:false,
+  // so it doesn't play on creation. On each IntersectionObserver entry we reset+play.
+
+  function createFlorAnimation(florEl) {
+    const petals = florEl.querySelectorAll('.petal');
+    const buds = florEl.querySelectorAll('.bud');
+    const sepals = florEl.querySelectorAll('.sepal');
+    const paths = florEl.querySelectorAll('.flor-path');
+    const centers = florEl.querySelectorAll('.center');
+    const stems = florEl.querySelectorAll('.stem');
+    const leaves = florEl.querySelectorAll('.leaf');
+
+    const anims = [];
+
+    if (petals.length) {
+      anims.push(anime({
+        targets: petals,
+        scale: [0, 1],
+        opacity: [0, 0.85],
+        delay: anime.stagger(30),
+        duration: 800,
+        easing: 'easeOutCubic',
+        autoplay: false,
+      }));
+    }
+    if (buds.length) {
+      anims.push(anime({
+        targets: buds,
+        scale: [0.3, 1],
+        opacity: [0, 0.45],
+        duration: 700,
+        easing: 'easeOutCubic',
+        autoplay: false,
+      }));
+    }
+    if (sepals.length) {
+      anims.push(anime({
+        targets: sepals,
+        opacity: [0, 0.6],
+        duration: 700,
+        delay: 100,
+        easing: 'easeOutCubic',
+        autoplay: false,
+      }));
+    }
+    if (paths.length) {
+      anims.push(anime({
+        targets: paths,
+        strokeDashoffset: [anime.setDashoffset, 0],
+        opacity: [0, 1],
+        duration: 1200,
+        easing: 'easeInOutCubic',
+        autoplay: false,
+      }));
+    }
+    if (centers.length) {
+      anims.push(anime({
+        targets: centers,
+        opacity: [0, 1],
+        duration: 600,
+        delay: 400,
+        easing: 'easeOutCubic',
+        autoplay: false,
+      }));
+    }
+    if (stems.length) {
+      anims.push(anime({
+        targets: stems,
+        strokeDashoffset: [anime.setDashoffset, 0],
+        duration: 1000,
+        easing: 'easeOutCubic',
+        autoplay: false,
+      }));
+    }
+    if (leaves.length) {
+      anims.push(anime({
+        targets: leaves,
+        scale: [0, 1],
+        opacity: [0, 0.5],
+        delay: anime.stagger(60),
+        duration: 700,
+        easing: 'easeOutCubic',
+        autoplay: false,
+      }));
+    }
+    return anims;
+  }
+
+  // Per-flower anim registry
+  const florAnims = new WeakMap();
+
+  document.querySelectorAll('[data-flor]').forEach(florEl => {
+    const anims = createFlorAnimation(florEl);
+    florAnims.set(florEl, anims);
+  });
+
+  function bloomFlor(florEl) {
+    const anims = florAnims.get(florEl);
+    if (!anims) return;
+    anims.forEach(a => {
+      try {
+        a.reset();
+        a.play();
+      } catch (e) { /* ignore if anime not loaded */ }
+    });
+  }
+
+  // Per-flower observer (Pattern B requires per-item observer, no unobserve)
+  const florObserver = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        bloomFlor(e.target);
+      }
+    });
+  }, { root: ob, threshold: 0.25 });
+
+  document.querySelectorAll('[data-flor]').forEach(el => florObserver.observe(el));
+
+  // Hero reveal
+  setTimeout(() => {
+    document.querySelectorAll('.ob-hero [data-anim]').forEach(t => {
+      if (typeof anime !== 'undefined') {
+        anime({ targets: t, opacity: [0, 1], translateY: [20, 0], duration: 900, delay: 100, easing: 'easeOutCubic' });
+      } else {
+        t.style.opacity = '1';
+      }
+    });
+  }, 200);
+
+  window.__openOnboarding = open;
+})();
+</script>
+
+</body>
+</html>

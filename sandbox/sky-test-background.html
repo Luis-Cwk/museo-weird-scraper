@@ -1,0 +1,70 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sky Test</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
+</head><body>
+<canvas id="c"></canvas>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+const skyURL = 'sky-8813.png';
+
+// 3 renderer strategies to compare side-by-side
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias: false});
+renderer.setPixelRatio(1);
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 0, 0.001);  // sit AT the center of the scene
+
+const loader = new THREE.TextureLoader();
+loader.load(skyURL, (tex) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+
+  // STRATEGY A: scene.background = texture (Three.js handles wrap natively)
+  scene.background = tex;
+
+  // Add lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+  sun.position.set(5, 10, 7);
+  scene.add(sun);
+
+  // Place voxel sculpture in center
+  // (mini voxel: just a few cubes to show the sculpture is there)
+  const sculpture = new THREE.Group();
+  for (let i = 0; i < 20; i++) {
+    const g = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+    const m = new THREE.MeshStandardMaterial({color: 0xe0e0e0, metalness: 0.4, roughness: 0.6});
+    const c = new THREE.Mesh(g, m);
+    c.position.set(
+      (Math.random() - 0.5) * 2,
+      (Math.random() - 0.5) * 3,
+      (Math.random() - 0.5) * 2
+    );
+    sculpture.add(c);
+  }
+  scene.add(sculpture);
+  sculpture.position.set(0, 0, -8);
+
+  // Render
+  renderer.render(scene, camera);
+
+  // Rotate camera slowly so we can see the wrap behavior at different angles
+  let theta = 0;
+  function animate() {
+    theta += 0.005;
+    const r = 0.001;
+    camera.position.set(Math.sin(theta) * r, 0, Math.cos(theta) * r);
+    camera.lookAt(0, 0, -8);
+    renderer.render(scene, camera);
+    requestAnimationFrame(animate);
+  }
+  animate();
+});
+</script>
+</body></html>

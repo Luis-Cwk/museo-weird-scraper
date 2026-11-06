@@ -1,0 +1,20 @@
+{
+  "network": "mainnet",
+  "chainId": 1,
+  "deployer": "0x8DA1724221F10Bd3d1DE59A35686DB244296bb10",
+  "treasury": "0xE99c3Ecbc68868602CF558325BC6ab6A9807dFa9",
+  "timestamp": "2026-09-05T17:33:14.484Z",
+  "contracts": {
+    "MuseoWeirdNFT": {
+      "address": "0xcb6a534EF769416f7a7EC766df9928665a92858b",
+      "auctionContract": "0xA0610eFEd22c6fa68954b35A11bc59d674691d77",
+      "royaltyReceiver": "0xA0610eFEd22c6fa68954b35A11bc59d674691d77",
+      "royaltyFeeBps": 1500
+    },
+    "MuseoWeirdAuction": {
+      "address": "0xA0610eFEd22c6fa68954b35A11bc59d674691d77",
+      "treasury": "0xE99c3Ecbc68868602CF558325BC6ab6A9807dFa9"
+    }
+  },
+  "explorerUrl": "https://etherscan.io/address/0xcb6a534EF769416f7a7EC766df9928665a92858b"
+}

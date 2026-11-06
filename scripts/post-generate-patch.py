@@ -32,86 +32,28 @@ TEMPLATE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Huaca, Sistemas Mágicos · {ID_SHORT}</title>
 <style>
-  /* === Huaca canonical look (approved 2026-08-25) ===
-     Layers, from back to front:
-     1. Sky base:   CSS background-image, edge-to-edge
-     2. Wash left:  12% wide, light cyan, moves UP, 14s cycle, blend: screen
-     3. Wash right: 12% wide, dark blue,  moves DOWN, 18s cycle, blend: multiply
-     4. Voxel:      transparent WebGL canvas (alpha:true), z-index:2
-     5. Vignette:   static radial darken at corners
-     6. Scanlines:  horizontal 1px lines at 1.2% opacity, 3px drift, 8s cycle
-     The durations (8/14/18s) are coprime so the loops never sync.
+  /* === Huaca canonical look (rev 2026-08-26) ===
+     Petra asked to remove the animated washes on the sides — they were
+     too busy. The 2026-08-25 revision (sky + 12% wash-left + 12% wash-right +
+     vignette + scanlines) is replaced by a single, clean sky background
+     with the voxel on top. Only the HDRI (sky-bg) and the voxel layer remain.
   */
   html, body {{ margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: ui-monospace, "Courier New", monospace; background: #000; }}
   #sky-bg {{
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
+    width: 100%; height: 100%;
     background-image: url('{SKY_URL}');
-    background-size: 100% 100%;
+    background-size: cover;
     background-position: center center;
     background-repeat: no-repeat;
     z-index: 1;
   }}
-  #sky-fx-left {{
-    position: fixed;
-    top: 0; bottom: 0; left: 0;
-    width: 12%;
-    background: linear-gradient(180deg,
-      transparent 0%,
-      rgba(180,200,210,0.18) 25%,
-      rgba(120,140,160,0.22) 50%,
-      rgba(180,200,210,0.18) 75%,
-      transparent 100%);
-    mix-blend-mode: screen;
-    animation: wash-up 14s linear infinite;
-    z-index: 3;
-    pointer-events: none;
-  }}
-  #sky-fx-right {{
-    position: fixed;
-    top: 0; bottom: 0; right: 0;
-    width: 12%;
-    background: linear-gradient(180deg,
-      transparent 0%,
-      rgba(20,30,40,0.35) 25%,
-      rgba(40,55,70,0.45) 50%,
-      rgba(20,30,40,0.35) 75%,
-      transparent 100%);
-    mix-blend-mode: multiply;
-    animation: wash-down 18s linear infinite;
-    z-index: 3;
-    pointer-events: none;
-  }}
-  #sky-fx-vignette {{
-    position: fixed;
-    inset: 0;
-    background: radial-gradient(ellipse at center,
-      transparent 55%,
-      rgba(0,0,0,0.25) 85%,
-      rgba(0,0,0,0.5) 100%);
-    z-index: 4;
-    pointer-events: none;
-  }}
-  #sky-fx-scan {{
-    position: fixed;
-    inset: 0;
-    background-image: repeating-linear-gradient(0deg,
-      rgba(255,255,255,0.012) 0px,
-      rgba(255,255,255,0.012) 1px,
-      transparent 1px,
-      transparent 3px);
-    z-index: 4;
-    pointer-events: none;
-    animation: scan-drift 8s linear infinite;
-  }}
-  @keyframes wash-up {{ from {{ transform: translateY(100%); }} to {{ transform: translateY(-100%); }} }}
-  @keyframes wash-down {{ from {{ transform: translateY(-100%); }} to {{ transform: translateY(100%); }} }}
-  @keyframes scan-drift {{ from {{ transform: translateY(0); }} to {{ transform: translateY(3px); }} }}
   #three-canvas {{
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 100%;
+    height: 100%;
     z-index: 2;
     cursor: grab;
   }}
@@ -133,10 +75,6 @@ TEMPLATE = """<!doctype html>
 </head>
 <body>
 <div id="sky-bg"></div>
-<div id="sky-fx-left"></div>
-<div id="sky-fx-right"></div>
-<div id="sky-fx-vignette"></div>
-<div id="sky-fx-scan"></div>
 <canvas id="three-canvas"></canvas>
 <div class="meta">{LABEL}</div>
 <div class="meta right">№ {ID_SHORT_UPPER}</div>
@@ -201,31 +139,51 @@ for (const p of VOXEL.pixels) {{
 voxelMesh.count = i;
 scene.add(voxelMesh);
 
+let camDistMin = 4;
+let camDistMax = 40;
+
 function fitToViewport() {{
-  const aspect = window.innerWidth / window.innerHeight;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  // ?thumb=1: gallery card thumbnails. Use generous margin (1.5x) so the
+  // voxel doesn't dominate the small frame. The auto-fit distance is also
+  // clamped higher so the mesh stays centered.
+  // Fullscreen keeps 1.5x breathing room; sub-600px thumbnails also get 1.5x
+  // because the old 0.8 made the voxel spill off-frame in gallery cards.
+  const isThumb = /[?&]thumb=1\\b/.test(location.search);
+  const margin = 1.5;
+  const aspect = w / h;
   camera.aspect = aspect;
   camera.updateProjectionMatrix();
   const hFov = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
   const distForWidth = (sculptureWidth * 0.5 * margin) / Math.tan(hFov / 2);
   const distForHeight = (sculptureHeight * 0.5 * margin) / Math.tan(fovRad / 2);
-  camDist = Math.max(distForWidth, distForHeight, 8);
+  camDist = Math.max(distForWidth, distForHeight, isThumb ? 12 : 8);
+  // Wheel zoom range: 0.4x to 2.5x the auto-fit distance.
+  camDistMin = camDist * 0.4;
+  camDistMax = camDist * 2.5;
   camera.position.set(0, 0, camDist);
   camera.lookAt(0, 0, 0);
-  // 2026-08-26: also resize the WebGL renderer to the new viewport size.
-  // Without this, the canvas stays at the initial size while the CSS
-  // background (sky + washes + vignette + scanlines) resizes correctly,
-  // causing the voxel to render at the wrong scale on a resized window.
-  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setSize(w, h);
 }}
 fitToViewport();
 window.addEventListener('resize', fitToViewport);
+if (typeof ResizeObserver !== 'undefined') {{
+  new ResizeObserver(fitToViewport).observe(document.body);
+}}
 
 let isDragging = false, lastX = 0;
+let lastInteraction = performance.now();
+const IDLE_MS = 5000;
+const AUTO_YAW_SPEED = 0.0025;
+
 canvas.addEventListener('pointerdown', (e) => {{
   isDragging = true; lastX = e.clientX;
   canvas.setPointerCapture(e.pointerId);
+  lastInteraction = performance.now();
 }});
 canvas.addEventListener('pointermove', (e) => {{
+  lastInteraction = performance.now();
   if (!isDragging) return;
   voxelMesh.rotation.y += (e.clientX - lastX) * 0.005;
   lastX = e.clientX;
@@ -233,13 +191,31 @@ canvas.addEventListener('pointermove', (e) => {{
 canvas.addEventListener('pointerup', (e) => {{
   isDragging = false;
   try {{ canvas.releasePointerCapture(e.pointerId); }} catch (_) {{}}
+  lastInteraction = performance.now();
 }});
+canvas.addEventListener('wheel', (e) => {{
+  e.preventDefault();
+  // Multiplicative zoom: each wheel tick scales distance by a fraction of current camDist.
+  const delta = e.deltaY * 0.0015;
+  camDist = Math.max(camDistMin, Math.min(camDistMax, camDist + delta * camDist));
+  camera.position.set(0, 0, camDist);
+  camera.lookAt(0, 0, 0);
+  lastInteraction = performance.now();
+}}, {{ passive: false }});
 
 let pulse = 0;
 function animate() {{
+  const now = performance.now();
   pulse += 0.01;
   const s = 1 + Math.sin(pulse) * 0.04;
   voxelMesh.scale.set(s, s, s);
+  // Idle auto-rotate: after IDLE_MS without interaction, slowly yaw the voxel.
+  // Skip in gallery thumbnails (?thumb=1) — iframe is pointer-events:none so
+  // the user can't reset lastInteraction and the voxel would spin forever.
+  const isThumbAnim = /[?&]thumb=1\b/.test(location.search);
+  if (!isThumbAnim && !isDragging && (now - lastInteraction) > IDLE_MS) {{
+    voxelMesh.rotation.y += AUTO_YAW_SPEED;
+  }}
   renderer.render(scene, camera);
   requestAnimationFrame(animate);
 }}
@@ -254,7 +230,11 @@ def extract_constants(html: str):
     """Extract PALETTE, VOXEL, LAYOUT, META, SEED, skyUrl from a voxel-N.html."""
     out = {}
     for name in ["PALETTE", "VOXEL", "LAYOUT", "META", "SEED"]:
-        m = re.search(rf"const {name} = (.+?);", html, re.DOTALL)
+        # Capture up to the statement-terminating ';' (followed by a newline),
+        # NOT the first ';' which may appear inside the META content string
+        # (e.g. "…por la OMS; en 2018…"). Dropping re.DOTALL + anchoring to
+        # the line-ending ';' fixes truncated META.content.
+        m = re.search(rf"const {name} = (.+?);\s*(?:\r?\n|$)", html)
         if not m:
             raise ValueError(f"Could not find const {name} in HTML")
         out[name] = m.group(1)
@@ -269,9 +249,10 @@ def extract_sky_url(html: str):
     - new THREE.TextureLoader().load("textures/sky-XXXX.png")  (old plane approach)
     - const SKY_URL = "textures/sky-XXXX.png"                   (current CSS-BG approach)
     - background-image: url('textures/sky-XXXX.png')            (already-patched files)
+    - <meta name="sky-url" content="textures/sky-XXXX.png" />    (autonomous-agent fallback)
     """
     # 1. TextureLoader
-    m = re.search(r'load\(["\']?(textures/sky-(\d+)\.png)', html)
+    m = re.search(r'load\(["\'](textures/sky-(\d+)\.png)["\']', html)
     if m:
         return m.group(1)
     # 2. SKY_URL const
@@ -280,6 +261,10 @@ def extract_sky_url(html: str):
         return m.group(1)
     # 3. background-image already in CSS (idempotent re-run)
     m = re.search(r"url\(['\"]?(textures/sky-(\d+)\.png)['\"]?\)", html)
+    if m:
+        return m.group(1)
+    # 4. <meta name="sky-url" content="textures/sky-XXXX.png"> (added 2026-08-27)
+    m = re.search(r'<meta\s+name=["\']sky-url["\']\s+content=["\'](textures/sky-(\d+)\.png)["\']', html)
     if m:
         return m.group(1)
     return None
@@ -303,7 +288,7 @@ def main():
                  "or the file format is unrecognized. Refusing to generate an empty sky-bg div.")
     out = TEMPLATE.format(
         ID_SHORT=consts["META"].split("\"id\":", 1)[1].split("\"", 2)[1][:8] if "\"id\"" in consts["META"] else "t_00000000",
-        SKY_URL=sky_url or "",
+        SKY_URL="https://petrasynthetic.com/huaca/" + (sky_url or ""),
         LABEL="HUACA",
         ACCENT="#888",
         ID_SHORT_UPPER=(consts["META"].split("\"id\":", 1)[1].split("\"", 2)[1][:6] if "\"id\"" in consts["META"] else "T_000000").upper(),

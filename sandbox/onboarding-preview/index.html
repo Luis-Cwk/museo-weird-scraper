@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Huaca · Onboarding (preview)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #000000;
+    --text-secondary: rgba(0, 0, 0, 0.6);
+    --border: rgba(0, 0, 0, 0.1);
+    --border-strong: rgba(0, 0, 0, 0.2);
+    --warn: #c2410c;
+    --bid: #166534;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Space Grotesk', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  /* === ONBOARDING OVERLAY === */
+  .onboarding {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 99999;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100vh;
+    scroll-behavior: smooth;
+  }
+  .onboarding.hidden { display: none; }
+
+  .ob-progress {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 3px;
+    background: var(--border);
+    z-index: 100000;
+  }
+  .ob-progress-bar {
+    height: 100%;
+    background: var(--bid);
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+
+  .ob-topbar {
+    position: fixed; top: 16px; right: 16px;
+    z-index: 100001;
+    display: flex; gap: 8px;
+  }
+  .ob-topbar button {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 8px 14px;
+    font-family: inherit;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .ob-topbar button:hover { background: var(--text); color: #fff; }
+
+  .ob-skip {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    padding: 12px 20px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100001;
+    border-top: 1px solid var(--border);
+    transition: opacity 0.3s;
+  }
+  .ob-skip:hover { color: var(--bid); }
+  .ob-skip.fade { opacity: 0.3; }
+
+  /* === CHECKBOX "no mostrar de nuevo" === */
+  .ob-toggle {
+    position: fixed;
+    bottom: 24px;
+    left: 24px;
+    z-index: 100001;
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    user-select: none;
+    background: rgba(255,255,255,0.85);
+    backdrop-filter: blur(8px);
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+  }
+  .ob-toggle input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1px solid var(--border-strong);
+    cursor: pointer;
+    position: relative;
+    margin: 0;
+  }
+  .ob-toggle input:checked {
+    background: var(--bid);
+    border-color: var(--bid);
+  }
+  .ob-toggle input:checked::after {
+    content: '✓';
+    position: absolute;
+    top: -2px;
+    left: 1px;
+    color: #fff;
+    font-size: 0.7rem;
+  }
+  .ob-toggle:hover { color: var(--text); }
+
+  /* === "Cómo funciona" link en el nav del sitio === */
+  .nav-how {
+    background: transparent;
+    color: var(--text);
+    border: none;
+    padding: 8px 0;
+    font-family: inherit;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-strong);
+  }
+  .nav-how:hover { border-bottom-color: var(--text); }
+
+  /* === SECTIONS (vertical scroll sections, each full viewport) === */
+  .ob-section {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(80px, 12vh, 140px) clamp(24px, 6vw, 80px);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .ob-section .num {
+    font-size: clamp(4rem, 12vw, 10rem);
+    font-weight: 700;
+    line-height: 0.85;
+    letter-spacing: -0.04em;
+    color: var(--bid);
+    opacity: 0.15;
+    margin-bottom: -20px;
+  }
+  .ob-section h2 {
+    font-size: clamp(2rem, 6vw, 4.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 24px;
+  }
+  .ob-section p {
+    font-size: clamp(1rem, 1.5vw, 1.3rem);
+    line-height: 1.5;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin-bottom: 14px;
+  }
+  .ob-section p strong { color: var(--text); font-weight: 600; }
+  .ob-section p code {
+    font-family: 'Space Grotesk', monospace;
+    background: rgba(0,0,0,0.06);
+    padding: 2px 6px;
+    font-size: 0.95em;
+  }
+
+  /* Section-specific layout */
+  .ob-hero { background: linear-gradient(180deg, #fafafa 0%, #ffffff 100%); }
+  .ob-hero .lede {
+    font-size: clamp(1.2rem, 2vw, 1.8rem);
+    font-weight: 300;
+    color: var(--text);
+    max-width: 720px;
+    line-height: 1.4;
+    margin-top: 16px;
+  }
+  .ob-hero .lede em {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--bid);
+  }
+
+  .step-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 32px;
+    max-width: 900px;
+  }
+  .step-card {
+    border: 1px solid var(--border);
+    padding: 18px 16px;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .step-card:hover { border-color: var(--bid); transform: translateY(-2px); }
+  .step-card .step-num {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+  }
+  .step-card h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .step-card p {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: var(--text-secondary);
+    margin: 0;
+  }
+
+  .ob-cta {
+    text-align: left;
+  }
+  .ob-cta .final {
+    font-size: clamp(1.5rem, 3vw, 2.5rem);
+    font-weight: 700;
+    margin-bottom: 16px;
+    line-height: 1.1;
+  }
+  .ob-cta .final em {
+    font-style: normal;
+    color: var(--bid);
+  }
+  .ob-cta button.entrar {
+    background: var(--text);
+    color: #fff;
+    border: none;
+    padding: 18px 40px;
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    cursor: pointer;
+    margin-top: 24px;
+    transition: background 0.2s;
+  }
+  .ob-cta button.entrar:hover { background: var(--bid); }
+
+  /* hint anim on side */
+  .scroll-hint {
+    position: absolute;
+    bottom: 80px; right: 32px;
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--text-secondary);
+    opacity: 0.6;
+  }
+  .scroll-hint::after {
+    content: '↓';
+    display: block;
+    font-size: 1.2rem;
+    margin-top: 6px;
+    animation: bob 1.6s ease-in-out infinite;
+  }
+  @keyframes bob {
+    0%, 100% { transform: translateY(0); opacity: 0.5; }
+    50% { transform: translateY(6px); opacity: 1; }
+  }
+
+  /* === MAIN SITE PREVIEW (lo que hay debajo del overlay) === */
+  .fake-site {
+    padding: 100px 3vw;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+  }
+</style>
+</head>
+<body>
+
+<!-- Onboarding overlay -->
+<div class="onboarding" id="onboarding">
+
+  <div class="ob-progress"><div class="ob-progress-bar" id="obProgress"></div></div>
+
+  <div class="ob-topbar">
+    <button id="obClose">✕ Saltar</button>
+  </div>
+
+  <!-- SECTION 0 · HERO -->
+  <section class="ob-section ob-hero">
+    <div class="num" data-anim="num">00</div>
+    <h2 data-anim="title">Lo raro<br/>es político.</h2>
+    <p class="lede" data-anim="lede">
+      Esto es <em>Huaca, Sistemas Mágicos</em>: un archivo vivo de hechos anómalos. Cada pieza es un voxel generado por IA, subastado en Sepolia, registrado en blockchain.
+    </p>
+    <p data-anim="meta" style="margin-top:32px; font-size:0.8rem; letter-spacing:2px; text-transform:uppercase;">
+      Antes de Pujar · 90 segundos
+    </p>
+    <div class="scroll-hint" data-anim="hint">scroll</div>
+  </section>
+
+  <!-- SECTION 1 · EL PROYECTO -->
+  <section class="ob-section">
+    <div class="num" data-anim="num">01</div>
+    <h2 data-anim="title">Qué estás viendo.</h2>
+    <p data-anim="p">
+      Un <strong>scraper autónomo</strong> busca hechos anómalos en redes sociales (Bluesky, X). Un LLM decide cuáles merecen preservarse. Cada hecho se transforma en un <strong>voxel 3D</strong> con una paleta de colores específica según su categoría.
+    </p>
+    <p data-anim="p">
+      El voxel se sube a IPFS, se acuña como NFT en Sepolia y se subasta en ETH de prueba. Si nadie puja, el canon sigue borrando. Si alguien puja, lo raro se preserva.
+    </p>
+  </section>
+
+  <!-- SECTION 2 · LOS 4 PASOS -->
+  <section class="ob-section">
+    <div class="num" data-anim="num">02</div>
+    <h2 data-anim="title">Para pujar,<br/>4 pasos.</h2>
+    <p data-anim="p">
+      No necesitas saber de crypto. Esto es una <strong>red de prueba</strong>: el ETH no es real, solo pagas gas (fracciones de centavos).
+    </p>
+    <div class="step-grid" data-anim="grid">
+      <div class="step-card">
+        <div class="step-num">Paso 01</div>
+        <h3>WALLET</h3>
+        <p>Instala MetaMask (extensión de navegador). Crea cuenta. Guarda tu frase seed en papel, <strong>nunca</strong> en un sitio web.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">Paso 02</div>
+        <h3>FONDOS</h3>
+        <p>Estamos en <strong>Sepolia</strong> (red de prueba). Copia tu address, pégalo en un faucet, recibe ~0.5 ETH falso.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">Paso 03</div>
+        <h3>PUJAR</h3>
+        <p>Click <strong>CONNECT WALLET</strong> arriba. Espera el verde. En cualquier card con botón verde, click → confirma en MetaMask.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-num">Paso 04</div>
+        <h3>LIQUIDAR</h3>
+        <p>Cuando termina el tiempo, click <strong>SETTLE</strong>. Si ganaste, el ETH vuelve a tu wallet y el NFT queda tuyo.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- SECTION 3 · SEGURIDAD -->
+  <section class="ob-section">
+    <div class="num" data-anim="num">03</div>
+    <h2 data-anim="title">Lo que <em style="color:var(--warn)">nunca</em><br/>debes hacer.</h2>
+    <p data-anim="p">
+      <strong>Nunca</strong> compartas tu frase seed (las 12 palabras). Nadie legítimo te la va a pedir. Ni soporte, ni este sitio, ni un admin.
+    </p>
+    <p data-anim="p">
+      <strong>Nunca</strong> apruebes una transacción que no entiendes. Si MetaMask te pide firmar algo raro, ciérralo.
+    </p>
+    <p data-anim="p">
+      <strong>Nunca</strong> uses la red principal (Mainnet) por accidente. Estás en Sepolia: la red de prueba. Verifica en MetaMask que diga "Sepolia" antes de cualquier firma.
+    </p>
+  </section>
+
+  <!-- SECTION 4 · CTA FINAL -->
+  <section class="ob-section ob-cta">
+    <div class="num" data-anim="num">04</div>
+    <h2 class="final" data-anim="title">Listo. <em>Lo raro te espera.</em></h2>
+    <p data-anim="p">
+      Cuando cierres esta ventana, vas a ver la galería. Cada card es un hecho anómalo ya minteado en Sepolia. Puedes pujar, dejar que otros pujen, o solo mirar.
+    </p>
+    <p data-anim="p">
+      Si tienes dudas, abre una card, lee la fuente original, y decide.
+    </p>
+    <button class="entrar" data-anim="btn" id="obEnter">Entrar a la galería →</button>
+  </section>
+
+  <button class="ob-skip" id="obSkip">Saltar onboarding →</button>
+
+  <label class="ob-toggle">
+    <input type="checkbox" id="obNoShow" />
+    <span>No mostrar de nuevo</span>
+  </label>
+</div>
+
+<!-- Lo que está "debajo": un hint del sitio real -->
+<div class="fake-site">
+  (aquí empieza la galería cuando cierras el onboarding)
+  <br/><br/>
+  <button class="nav-how" id="obHow">¿Cómo funciona?</button>
+</div>
+
+<script>
+(function(){
+  const ob = document.getElementById('onboarding');
+  const bar = document.getElementById('obProgress');
+  const toggle = document.getElementById('obNoShow');
+  const SKIP_KEY = 'huaca-ob-skip';
+
+  // Si ya eligió "no mostrar", arrancar cerrado
+  if (localStorage.getItem(SKIP_KEY) === '1') {
+    ob.classList.add('hidden');
+  }
+
+  function close(){
+    if (toggle && toggle.checked) {
+      localStorage.setItem(SKIP_KEY, '1');
+    }
+    ob.classList.add('hidden');
+  }
+
+  function open(){
+    ob.classList.remove('hidden');
+    ob.scrollTop = 0;
+    bar.style.width = '0%';
+  }
+
+  document.getElementById('obClose').addEventListener('click', close);
+  document.getElementById('obSkip').addEventListener('click', close);
+  document.getElementById('obEnter').addEventListener('click', close);
+  document.getElementById('obHow').addEventListener('click', open);
+
+  // Fade skip button when scrolled past hero
+  const skip = document.getElementById('obSkip');
+  ob.addEventListener('scroll', () => {
+    bar.style.width = (ob.scrollTop / (ob.scrollHeight - ob.clientHeight) * 100) + '%';
+    if (ob.scrollTop > window.innerHeight * 0.5) skip.classList.add('fade');
+    else skip.classList.remove('fade');
+  });
+
+  // anime.js scroll-driven animations
+  // Each [data-anim] reveals when its section enters viewport
+  const targets = document.querySelectorAll('.ob-section [data-anim]');
+
+  function reveal(entries){
+    entries.forEach(e => {
+      if (!e.isIntersecting) return;
+      const el = e.target;
+      const t = el.dataset.anim;
+
+      if (t === 'num') {
+        anime({ targets: el, opacity: [0, 0.15], translateX: [-40, 0], duration: 700, easing: 'easeOutCubic' });
+      } else if (t === 'title') {
+        anime({ targets: el, opacity: [0, 1], translateY: [30, 0], duration: 800, easing: 'easeOutExpo' });
+      } else if (t === 'lede' || t === 'p' || t === 'meta') {
+        anime({ targets: el, opacity: [0, 1], translateY: [20, 0], duration: 700, delay: 150, easing: 'easeOutCubic' });
+      } else if (t === 'hint') {
+        anime({ targets: el, opacity: [0, 0.6], duration: 1200, delay: 600 });
+      } else if (t === 'grid') {
+        anime({
+          targets: el.children,
+          opacity: [0, 1],
+          translateY: [24, 0],
+          delay: anime.stagger(80),
+          duration: 600,
+          easing: 'easeOutCubic'
+        });
+      } else if (t === 'btn') {
+        anime({ targets: el, opacity: [0, 1], scale: [0.95, 1], duration: 800, delay: 200, easing: 'easeOutBack' });
+      }
+      e.target.dataset.shown = '1';
+    });
+  }
+
+  const io = new IntersectionObserver(reveal, { root: ob, threshold: 0.25 });
+  targets.forEach(t => io.observe(t));
+
+  // Initial reveal: hero
+  setTimeout(() => {
+    document.querySelectorAll('.ob-hero [data-anim]').forEach(t => {
+      anime({ targets: t, opacity: [0, 1], translateY: [20, 0], duration: 900, delay: 100, easing: 'easeOutCubic' });
+    });
+  }, 200);
+})();
+</script>
+
+</body>
+</html>

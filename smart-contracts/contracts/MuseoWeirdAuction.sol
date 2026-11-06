@@ -18,12 +18,18 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  *   2. Seller calls createAuction(nftContract, tokenId, startingBid, duration).
  *      The NFT is transferred into escrow.
  *   3. Bidders call bid(nftContract, tokenId) with msg.value >= current + 5%.
- *      Previous highest bidder is refunded automatically.
+ *      Previous highest bidder is credited via PULL (calls withdraw() later).
  *   4. Anyone calls finalizeAuction(nftContract, tokenId) after endTime:
  *      - NFT goes to highest bidder (or back to seller if no bids)
- *      - ETH goes to seller
+ *      - Proceeds split 50/50 between seller and treasury (PULL)
  *
  * Cancel: seller can cancel before any bid is placed (NFT returns to seller).
+ *
+ * Distribution (PULL pattern):
+ *   - All credits (bid refunds, seller share, treasury share, royalties) are
+ *     stored in `pendingWithdrawals` and withdrawn by each party via withdraw().
+ *   - Royalties (ERC2981) are received via receive(), split 50/50 between the
+ *     owner (artist) and treasury.
  */
 contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
 
@@ -40,6 +46,12 @@ contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
 
     /// @notice Minimum bid increment over previous highest (5%)
     uint256 public constant MIN_BID_INCREMENT_BPS = 500;
+
+    /// @notice Treasury address that receives 50% of proceeds and royalties.
+    address public treasury;
+
+    /// @notice Pull-based withdrawals: user → pending ETH (bid refunds, seller/treasury shares).
+    mapping(address => uint256) public pendingWithdrawals;
 
     /// @notice auctionId → Auction. auctionId = uint256(keccak256(nft, tokenId))
     mapping(uint256 => Auction) public auctions;
@@ -71,7 +83,12 @@ contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
 
     event AuctionCancelled(uint256 indexed auctionId);
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    event Withdrawal(address indexed user, uint256 amount);
+
+    constructor(address initialOwner, address treasury_) Ownable(initialOwner) {
+        require(treasury_ != address(0), "Zero treasury");
+        treasury = treasury_;
+    }
 
     function _auctionId(address nftContract, uint256 tokenId) public pure returns (uint256) {
         return uint256(keccak256(abi.encodePacked(nftContract, tokenId)));
@@ -91,7 +108,9 @@ contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
         uint256 durationSeconds
     ) external nonReentrant {
         require(startingBid > 0, "Starting bid must be > 0");
-        require(durationSeconds >= 1 hours && durationSeconds <= 30 days, "Bad duration");
+        // v8: removed `durationSeconds >= 1 hours` minimum — enables fast testing
+        // with sub-minute durations. Upper bound kept at 30 days for production safety.
+        require(durationSeconds > 0 && durationSeconds <= 30 days, "Bad duration");
 
         IERC721 nft = IERC721(nftContract);
         uint256 id = _auctionId(nftContract, tokenId);
@@ -150,10 +169,9 @@ contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
 
         emit BidPlaced(id, msg.sender, msg.value);
 
-        // INTERACTIONS: refund previous highest bidder (after state updates)
+        // INTERACTIONS: credit previous highest bidder (PULL, no push refund).
         if (prevBidder != address(0)) {
-            (bool success, ) = prevBidder.call{value: prevBid}("");
-            require(success, "Refund failed");
+            pendingWithdrawals[prevBidder] += prevBid;
         }
     }
 
@@ -172,9 +190,12 @@ contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
 
         if (a.highestBidder != address(0)) {
             IERC721(nftContract).safeTransferFrom(address(this), a.highestBidder, a.tokenId);
-            (bool success, ) = a.seller.call{value: a.highestBid}("");
-            require(success, "Seller payout failed");
-            emit AuctionFinalized(id, a.highestBidder, a.highestBid);
+            // Split proceeds 50/50: seller + treasury (PULL, no push payout).
+            uint256 total = a.highestBid;
+            uint256 half = total / 2;
+            pendingWithdrawals[a.seller] += (total - half);
+            pendingWithdrawals[treasury] += half;
+            emit AuctionFinalized(id, a.highestBidder, total);
         } else {
             // No bids — return NFT to seller
             IERC721(nftContract).safeTransferFrom(address(this), a.seller, a.tokenId);
@@ -198,6 +219,19 @@ contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
         emit AuctionCancelled(id);
     }
 
+    /**
+     * @notice Withdraw any pending ETH credited to msg.sender (pull pattern).
+     *         Covers bid refunds, seller/treasury shares, and royalty splits.
+     */
+    function withdraw() external nonReentrant {
+        uint256 amount = pendingWithdrawals[msg.sender];
+        require(amount > 0, "Nothing to withdraw");
+        pendingWithdrawals[msg.sender] = 0;
+        (bool success, ) = payable(msg.sender).call{value: amount}("");
+        require(success, "Withdraw failed");
+        emit Withdrawal(msg.sender, amount);
+    }
+
     /// @notice Helper to read an auction's full state.
     function getAuction(address nftContract, uint256 tokenId)
         external
@@ -216,5 +250,10 @@ contract MuseoWeirdAuction is Ownable, ReentrancyGuard, IERC721Receiver {
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    receive() external payable {}
+    /// @notice Receives royalty payments (ERC2981) and splits 50/50 between owner (artist) and treasury.
+    receive() external payable {
+        uint256 half = msg.value / 2;
+        pendingWithdrawals[owner()] += (msg.value - half);
+        pendingWithdrawals[treasury] += half;
+    }
 }

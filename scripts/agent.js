@@ -35,7 +35,7 @@ const LOG_PATH = path.join(ROOT, "logs", "agent.log");
 // env vars to override the bounds without touching code.
 // Before mainnet, leave this in place — 12h and 24h are both well within the
 // contract's allowed range (1s .. 30 days, see v8 deploy).
-const MAX_GAS_PRICE_GWEI = Number(process.env.HUACA_MAX_GAS_PRICE || "5");
+const MAX_GAS_PRICE_GWEI = Number(process.env.HUACA_MAX_GAS_PRICE || "1");
 const AUCTION_DURATION_MIN_HOURS = parseInt(process.env.AUCTION_DURATION_MIN_HOURS || "12", 10);
 const AUCTION_DURATION_MAX_HOURS = parseInt(process.env.AUCTION_DURATION_MAX_HOURS || "24", 10);
 function pickRandomAuctionDurationSeconds() {

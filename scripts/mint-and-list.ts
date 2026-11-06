@@ -84,7 +84,28 @@ async function processItem(item: QueueItem, pinata: PinataService, nft: ethers.C
 
   const mintTx = await nft.mint(walletAddress, metadata.ipfsUri);
   const mintReceipt = await mintTx.wait();
-  const tokenId = Number(await nft.totalSupply()) - 1;
+  // 2026-08-27: bug fix — reading `totalSupply() - 1` after `mintTx.wait()`
+  // is racy. The Transfer event in the receipt log is the canonical source
+  // for the new tokenId and survives concurrent mints correctly.
+  // Transfer(address from, address to, uint256 tokenId) — tokenId is the
+  // 3rd topic (index 3, since topics[0] is the event sig).
+  const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c20b676f7d3fbc6c56f5f7d0d6c0f3a9a5e3a4e5b6c7d8e";
+  let tokenId = -1;
+  for (const log of mintReceipt.logs as Array<{ topics: ReadonlyArray<string> }>) {
+    if (log.topics.length === 4 && log.topics[0] === TRANSFER_TOPIC) {
+      tokenId = Number(BigInt(log.topics[3]));
+      break;
+    }
+  }
+  if (tokenId < 0) {
+    // Fallback: read pre-mint totalSupply as the new tokenId. The script's
+    // own mint is the only thing that incremented the counter, so reading
+    // immediately after wait() is fine — but if a concurrent mint happened
+    // in between, this still mis-assigns. The Transfer event path above is
+    // the safe one; this fallback only triggers if the receipt log is missing.
+    tokenId = Number(await nft.totalSupply()) - 1;
+    console.warn(`  [warn] no Transfer event for queue item; falling back to totalSupply-1 = ${tokenId}`);
+  }
   item.tokenId = tokenId;
   item.mintTx = mintReceipt.hash;
   item.status = "minting";

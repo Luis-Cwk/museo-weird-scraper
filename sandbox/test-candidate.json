@@ -1,0 +1,17 @@
+{
+  "id": "m_72efa7f6658cb7af",
+  "content": "Más de 100 indígenas Emberá Katío llegaron a Medellín tras huir de la violencia en Chocó.",
+  "type": "story",
+  "attribution": "Anonymous",
+  "source": "x:\"(violencia OR deslizamiento) (medellin OR antioquia) lang:es -is:retweet\"",
+  "sourceUrl": "https://bsky.app/profile/x.com",
+  "score": 100,
+  "postScore": 0,
+  "extractedFrom": "x:\"(violencia OR deslizamiento) (medellin OR antioquia) lang:es -is:retweet\"",
+  "scrapedAt": "2026-08-26T03:06:32.964Z",
+  "aiImpactScore": 9,
+  "aiReasoning": "This text tells a story of displacement, making it impactful as art due to its narrative value.",
+  "aiLegalRisk": false,
+  "aiCategory": "displacement",
+  "approved": true
+}

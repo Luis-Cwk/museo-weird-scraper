@@ -3,6 +3,13 @@ dist/
 build/
 data/
 .env
+# Backups de .env: contienen credenciales reales, nunca commitear
+.env.bak*
+.env.pre-*
+.env.*.bak*
+# Respaldos de configuracion: pueden contener llaves privadas
+*.bak-*
+hardhat.config.js.bak*
 *.log
 .DS_Store
 # Hardhat

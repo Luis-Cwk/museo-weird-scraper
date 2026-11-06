@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Huaca · Onboarding Lluvia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<!-- p5.js v1.11.0 + anime.js v3.2.2 (both already validated, both on jsDelivr allowlist) -->
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.0/lib/p5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/animejs@3.2.2/lib/anime.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #000000;
+    --text-secondary: rgba(0, 0, 0, 0.55);
+    --border: rgba(0, 0, 0, 0.1);
+    --border-strong: rgba(0, 0, 0, 0.2);
+    --bid: #166534;
+    --warn: #c2410c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+  /* === ONBOARDING OVERLAY === */
+  .ob-overlay {
+    position: fixed; inset: 0;
+    background: transparent;  /* was var(--bg) — was hiding the flower canvas */
+    z-index: 99999;
+    overflow-y: auto;
+    overflow-x: hidden;
+    height: 100vh;
+    scroll-behavior: smooth;
+  }
+  .ob-overlay.hidden { display: none; }
+
+  /* p5 canvas: behind content, non-interactive so scroll works through it */
+  #floresCanvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* Content sits above the canvas.
+     Has a soft frosted background so text is readable but flowers peek through. */
+  .ob-content {
+    position: relative;
+    z-index: 2;
+    background: linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0.55) 100%);
+  }
+
+  .ob-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--border); z-index: 100000; }
+  .ob-progress-bar { height: 100%; background: var(--bid); width: 0%; transition: width 0.1s linear; }
+  .ob-topbar { position: fixed; top: 16px; right: 16px; z-index: 100001; }
+  .ob-close-btn { background: transparent; border: 1px solid var(--border-strong); color: var(--text); padding: 8px 14px; font-family: inherit; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; transition: all 0.15s; }
+  .ob-close-btn:hover { background: var(--text); color: #fff; }
+  .ob-toggle { position: fixed; bottom: 24px; left: 24px; z-index: 100001; font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); padding: 8px 12px; border: 1px solid var(--border); }
+  .ob-toggle input { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; border: 1px solid var(--border-strong); cursor: pointer; position: relative; margin: 0; }
+  .ob-toggle input:checked { background: var(--bid); border-color: var(--bid); }
+  .ob-toggle input:checked::after { content: '\2713'; position: absolute; top: -2px; left: 1px; color: #fff; font-size: 0.7rem; }
+  .ob-toggle:hover { color: var(--text); }
+
+  .ob-section {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(80px, 12vh, 140px) clamp(24px, 6vw, 80px);
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .ob-section .num {
+    font-size: clamp(4rem, 12vw, 10rem);
+    font-weight: 700;
+    line-height: 0.85;
+    letter-spacing: -0.04em;
+    color: var(--bid);
+    opacity: 0.15;
+    margin-bottom: -20px;
+  }
+  .ob-section h2 {
+    font-size: clamp(2rem, 6vw, 4.5rem);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    margin-bottom: 24px;
+  }
+  .ob-section p {
+    font-size: clamp(1rem, 1.5vw, 1.3rem);
+    line-height: 1.5;
+    color: var(--text-secondary);
+    max-width: 640px;
+    margin-bottom: 14px;
+  }
+  .ob-section p strong { color: var(--text); font-weight: 600; }
+  .ob-hero { padding-top: clamp(120px, 18vh, 200px); }
+  .ob-hero .lede {
+    font-size: clamp(1.2rem, 2vw, 1.8rem);
+    font-weight: 300;
+    color: var(--text);
+    max-width: 720px;
+    line-height: 1.4;
+    margin-top: 16px;
+  }
+  .ob-hero .lede em { font-style: normal; font-weight: 700; color: var(--bid); }
+
+  .step-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-top: 32px;
+    max-width: 900px;
+  }
+  .step-card { border: 1px solid var(--border); padding: 18px 16px; background: rgba(255,255,255,0.85); backdrop-filter: blur(6px); }
+  .step-card .step-num { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); margin-bottom: 8px; }
+  .step-card h3 { font-size: 1.1rem; font-weight: 600; margin-bottom: 6px; }
+  .step-card p { font-size: 0.85rem; line-height: 1.45; color: var(--text-secondary); margin: 0; }
+
+  .ob-cta .final { font-size: clamp(1.5rem, 3vw, 2.5rem); font-weight: 700; margin-bottom: 16px; line-height: 1.1; }
+  .ob-cta .final em { font-style: normal; color: var(--bid); }
+  .ob-cta button.entrar {
+    background: var(--text); color: #fff; border: none;
+    padding: 18px 40px;
+    font-family: inherit; font-size: 1rem; font-weight: 600;
+    letter-spacing: 2px; text-transform: uppercase;
+    cursor: pointer; margin-top: 24px; transition: background 0.2s;
+  }
+  .ob-cta button.entrar:hover { background: var(--bid); }
+
+  .scroll-hint { position: absolute; bottom: 80px; right: 32px; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); opacity: 0.6; }
+  .scroll-hint::after { content: '\2193'; display: block; font-size: 1.2rem; margin-top: 6px; animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(6px); opacity: 1; } }
+</style>
+</head>
+<body>
+
+<!-- Canvas dedicated to p5, sits behind content -->
+<div id="floresCanvas"></div>
+
+<div class="ob-overlay" id="obOverlay">
+
+  <div class="ob-progress"><div class="ob-progress-bar" id="obProgress"></div></div>
+  <div class="ob-topbar"><button class="ob-close-btn" id="obClose">&times; Saltar</button></div>
+
+  <div class="ob-content">
+
+    <!-- 00 · HERO -->
+    <section class="ob-section ob-hero">
+      <div class="num" data-anim="num">00</div>
+      <h2 data-anim="title">Lo raro<br/>es pol&iacute;tico.</h2>
+      <p class="lede" data-anim="lede">Esto es <em>Huaca, Sistemas M&aacute;gicos</em>: un archivo vivo de hechos an&oacute;malos. Cada pieza es un voxel generado por IA, subastado en Sepolia, registrado en blockchain.</p>
+      <p data-anim="meta" style="margin-top:32px; font-size:0.8rem; letter-spacing:2px; text-transform:uppercase;">Antes de Pujar &middot; 90 segundos</p>
+      <div class="scroll-hint" data-anim="hint">scroll</div>
+    </section>
+
+    <!-- 01 · QUÉ ESTÁS VIENDO -->
+    <section class="ob-section">
+      <div class="num" data-anim="num">01</div>
+      <h2 data-anim="title">Qu&eacute; est&aacute;s viendo.</h2>
+      <p data-anim="p">Un <strong>scraper aut&oacute;nomo</strong> busca hechos an&oacute;malos en redes sociales (Bluesky, X). Un LLM decide cu&aacute;les merecen preservarse. Cada hecho se transforma en un <strong>voxel 3D</strong> con una paleta de colores espec&iacute;fica seg&uacute;n su categor&iacute;a.</p>
+      <p data-anim="p">El voxel se sube a IPFS, se acu&ntilde;a como NFT en Sepolia y se subasta en ETH de prueba.</p>
+    </section>
+
+    <!-- 02 · 4 PASOS -->
+    <section class="ob-section">
+      <div class="num" data-anim="num">02</div>
+      <h2 data-anim="title">Para pujar,<br/>4 pasos.</h2>
+      <p data-anim="p">No necesitas saber de crypto. Esto es una <strong>red de prueba</strong>: el ETH no es real, solo pagas gas (fracciones de centavos).</p>
+      <div class="step-grid" data-anim="grid">
+        <div class="step-card"><div class="step-num">Paso 01</div><h3>WALLET</h3><p>Instala MetaMask (extensi&oacute;n de navegador). Crea cuenta. Guarda tu frase seed en papel.</p></div>
+        <div class="step-card"><div class="step-num">Paso 02</div><h3>FONDOS</h3><p>Estamos en <strong>Sepolia</strong>. Copia tu address, p&eacute;galo en un faucet.</p></div>
+        <div class="step-card"><div class="step-num">Paso 03</div><h3>PUJAR</h3><p>Click <strong>CONNECT WALLET</strong>. Click en PUJAR &rarr; confirma en MetaMask.</p></div>
+        <div class="step-card"><div class="step-num">Paso 04</div><h3>LIQUIDAR</h3><p>Cuando termina el tiempo, click <strong>SETTLE</strong>. Si ganaste, el ETH vuelve.</p></div>
+      </div>
+    </section>
+
+    <!-- 03 · LO QUE NUNCA -->
+    <section class="ob-section">
+      <div class="num" data-anim="num">03</div>
+      <h2 data-anim="title">Lo que <em style="color:var(--warn)">nunca</em><br/>debes hacer.</h2>
+      <p data-anim="p"><strong>Nunca</strong> compartas tu frase seed. Nadie leg&iacute;timo te la va a pedir.</p>
+      <p data-anim="p"><strong>Nunca</strong> apruebes una transacci&oacute;n que no entiendes.</p>
+      <p data-anim="p"><strong>Nunca</strong> uses la red principal (Mainnet) por accidente. Verifica que MetaMask diga "Sepolia".</p>
+    </section>
+
+    <!-- 04 · CTA -->
+    <section class="ob-section ob-cta">
+      <div class="num" data-anim="num">04</div>
+      <h2 class="final" data-anim="title">Listo. <em>Lo raro te espera.</em></h2>
+      <p data-anim="p">Cuando cierres esta ventana, vas a ver la galer&iacute;a. Cada card es un hecho an&oacute;malo ya minteado en Sepolia.</p>
+      <button class="entrar" data-anim="btn" id="obEnter">Entrar a la galer&iacute;a &rarr;</button>
+    </section>
+
+  </div>
+
+  <label class="ob-toggle"><input type="checkbox" id="obNoShow" /><span>No mostrar de nuevo</span></label>
+</div>
+
+<!-- ============================================================
+     p5.js v1 sketch — flowers falling like Débora's snow pattern,
+     reduced from 167 to ~40 instances for performance
+============================================================ -->
+<script>
+const FLOWER_FILES = [
+  'img/flower0.png',
+  'img/flower28.png',
+  'img/flower29.png',
+  'img/flower45.png',
+  'img/flower57.png',
+  'img/flower62.png',
+  'img/flower70.png',
+  'img/flower106.png',
+  'img/flower108.png',
+  'img/flower121.png',
+  'img/flower144.png',
+  'img/flower163.png',
+];
+
+const sketch = (p) => {
+  const images = [];
+  let flakes = [];
+  const FLAKE_COUNT = 30;
+
+  p.preload = () => {
+    for (let i = 0; i < FLOWER_FILES.length; i++) {
+      images[i] = p.loadImage(FLOWER_FILES[i]);
+    }
+  };
+
+  class FlowerFlake {
+    constructor() { this.init(); }
+    init() {
+      this.x = p.random(p.width);
+      this.y = p.random(-p.height, 0);
+      this.sizeScale = p.random(0.28, 0.55);  // bigger so they're visible on screenshot
+      this.rotAngle = p.random(360);
+      this.rotSpeed = p.random(-0.9, 0.9);
+      this.speed = p.random(0.4, 1.6);
+      this.xnoise = p.random(100);
+      this.wind = p.random(0.8, 2.2);
+      this.imgIdx = Math.floor(p.random(images.length));
+    }
+    update() {
+      this.x += (p.noise(this.xnoise) - 0.5) * this.wind * 2;
+      this.xnoise += 0.01;
+      this.y += this.speed;
+      this.rotAngle += this.rotSpeed;
+      if (this.y > p.height + 60 || this.x < -80 || this.x > p.width + 80) {
+        this.init();
+        this.y = -50;
+      }
+    }
+    draw() {
+      p.push();
+      p.translate(this.x, this.y);
+      p.rotate(p.radians(this.rotAngle));
+      p.scale(this.sizeScale);
+      p.imageMode(p.CENTER);
+      p.image(images[this.imgIdx], 0, 0);
+      p.pop();
+    }
+  }
+
+  p.setup = () => {
+    const c = p.createCanvas(p.windowWidth, p.windowHeight);
+    c.parent('floresCanvas');
+    p.pixelDensity(1);
+    for (let i = 0; i < FLAKE_COUNT; i++) {
+      flakes.push(new FlowerFlake());
+    }
+  };
+
+  p.draw = () => {
+    p.clear();  // transparent background so the white page shows through
+    for (let i = 0; i < flakes.length; i++) {
+      flakes[i].draw();
+      flakes[i].update();
+    }
+  };
+
+  p.windowResized = () => {
+    p.resizeCanvas(p.windowWidth, p.windowHeight);
+  };
+};
+
+new p5(sketch);
+</script>
+
+<script>
+(function(){
+  // ====== ONBOARDING OVERLAY UI (same logic as v3) ======
+  if (typeof window === 'undefined') return;
+  const ob = document.getElementById('obOverlay');
+  if (!ob) return;
+  const bar = document.getElementById('obProgress');
+  const toggle = document.getElementById('obNoShow');
+  const SKIP_KEY = 'huaca-ob-skip-v1';
+
+  try { if (localStorage.getItem(SKIP_KEY) === '1') ob.classList.add('hidden'); } catch(e) {}
+
+  function close(){
+    try { if (toggle && toggle.checked) localStorage.setItem(SKIP_KEY, '1'); } catch(e) {}
+    ob.classList.add('hidden');
+  }
+  function open(){
+    ob.classList.remove('hidden');
+    ob.scrollTop = 0;
+    bar.style.width = '0%';
+  }
+
+  document.getElementById('obClose').addEventListener('click', close);
+  document.getElementById('obEnter').addEventListener('click', close);
+
+  ob.addEventListener('scroll', () => {
+    if (ob.scrollHeight <= ob.clientHeight) return;
+    bar.style.width = (ob.scrollTop / (ob.scrollHeight - ob.clientHeight) * 100) + '%';
+  });
+
+  // ====== TEXT REVEALS via IntersectionObserver + anime.js ======
+  function revealText(entries) {
+    entries.forEach(e => {
+      if (!e.isIntersecting || e.target.dataset.shown) return;
+      const el = e.target;
+      const t = el.dataset.anim;
+      if (typeof anime === 'undefined') {
+        el.style.opacity = '1';
+        el.dataset.shown = '1';
+        return;
+      }
+      if (t === 'num') {
+        anime({ targets: el, opacity: [0, 0.15], translateX: [-40, 0], duration: 700, easing: 'easeOutCubic' });
+      } else if (t === 'title') {
+        anime({ targets: el, opacity: [0, 1], translateY: [30, 0], duration: 800, easing: 'easeOutExpo' });
+      } else if (t === 'lede' || t === 'p' || t === 'meta') {
+        anime({ targets: el, opacity: [0, 1], translateY: [20, 0], duration: 700, delay: 150, easing: 'easeOutCubic' });
+      } else if (t === 'hint') {
+        anime({ targets: el, opacity: [0, 0.6], duration: 1200, delay: 600 });
+      } else if (t === 'grid') {
+        anime({ targets: el.children, opacity: [0, 1], translateY: [24, 0], delay: anime.stagger(80), duration: 600, easing: 'easeOutCubic' });
+      } else if (t === 'btn') {
+        anime({ targets: el, opacity: [0, 1], scale: [0.95, 1], duration: 800, delay: 200, easing: 'easeOutBack' });
+      }
+      el.dataset.shown = '1';
+    });
+  }
+
+  document.querySelectorAll('[data-anim]').forEach(el => {
+    el.style.opacity = '0';
+  });
+  const textObserver = new IntersectionObserver(revealText, { root: ob, threshold: 0.25 });
+  document.querySelectorAll('[data-anim]').forEach(el => textObserver.observe(el));
+
+  setTimeout(() => {
+    document.querySelectorAll('.ob-hero [data-anim]').forEach(t => {
+      if (typeof anime !== 'undefined') {
+        anime({ targets: t, opacity: [0, 1], translateY: [20, 0], duration: 900, delay: 100, easing: 'easeOutCubic' });
+      } else {
+        t.style.opacity = '1';
+      }
+    });
+  }, 200);
+
+  window.__openOnboarding = open;
+})();
+</script>
+
+</body>
+</html>

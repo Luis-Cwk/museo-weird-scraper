@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Huaca · Onboarding p5 v1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<!-- p5.js v1.11.0 (classic, ~300 KB, stable, well-documented bezier/curve APIs) -->
+<script src="https://cdn.jsdelivr.net/npm/p5@1.11.0/lib/p5.min.js"></script>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #000000;
+    --text-secondary: rgba(0, 0, 0, 0.55);
+    --border: rgba(0, 0, 0, 0.1);
+    --border-strong: rgba(0, 0, 0, 0.2);
+    --bid: #166534;
+    --warn: #c2410c;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Space Grotesk', sans-serif; background: var(--bg); color: var(--text); overflow-x: hidden; }
+
+  .ob-overlay { position: fixed; inset: 0; background: var(--bg); z-index: 99999; overflow-y: auto; overflow-x: hidden; height: 100vh; scroll-behavior: smooth; }
+  .ob-overlay.hidden { display: none; }
+  .ob-progress { position: fixed; top: 0; left: 0; right: 0; height: 2px; background: var(--border); z-index: 100000; }
+  .ob-progress-bar { height: 100%; background: var(--bid); width: 0%; transition: width 0.1s linear; }
+  .ob-topbar { position: fixed; top: 16px; right: 16px; z-index: 100001; }
+  .ob-close-btn { background: transparent; border: 1px solid var(--border-strong); color: var(--text); padding: 8px 14px; font-family: inherit; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; transition: all 0.15s; }
+  .ob-close-btn:hover { background: var(--text); color: #fff; }
+  .ob-toggle { position: fixed; bottom: 24px; left: 24px; z-index: 100001; font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none; background: rgba(255,255,255,0.85); backdrop-filter: blur(8px); padding: 8px 12px; border: 1px solid var(--border); }
+  .ob-toggle input { appearance: none; -webkit-appearance: none; width: 14px; height: 14px; border: 1px solid var(--border-strong); cursor: pointer; position: relative; margin: 0; }
+  .ob-toggle input:checked { background: var(--bid); border-color: var(--bid); }
+  .ob-toggle input:checked::after { content: '\2713'; position: absolute; top: -2px; left: 1px; color: #fff; font-size: 0.7rem; }
+  .ob-toggle:hover { color: var(--text); }
+
+  .ob-section { min-height: 100vh; display: grid; grid-template-columns: 1fr 1fr; align-items: center; padding: clamp(60px, 10vh, 100px) clamp(24px, 6vw, 80px); border-bottom: 1px solid var(--border); position: relative; gap: clamp(20px, 4vw, 60px); }
+  .ob-section.hero { display: flex; flex-direction: column; justify-content: center; text-align: left; }
+
+  .ob-flor-wrap { width: 100%; max-width: 460px; aspect-ratio: 1; margin: 0 auto; display: flex; align-items: center; justify-content: center; position: relative; }
+  .ob-flor-wrap canvas { width: 100% !important; height: 100% !important; display: block; }
+
+  .ob-text { max-width: 600px; }
+  .ob-section .num { font-size: clamp(3rem, 8vw, 6rem); font-weight: 700; line-height: 0.85; letter-spacing: -0.04em; color: var(--bid); opacity: 0.18; margin-bottom: 12px; }
+  .ob-section h2 { font-size: clamp(1.8rem, 4.5vw, 3.2rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.05; margin-bottom: 20px; }
+  .ob-section p { font-size: clamp(0.95rem, 1.3vw, 1.15rem); line-height: 1.5; color: var(--text-secondary); margin-bottom: 12px; max-width: 540px; }
+  .ob-section p strong { color: var(--text); font-weight: 600; }
+  .ob-hero .lede { font-size: clamp(1.2rem, 2vw, 1.7rem); font-weight: 300; color: var(--text); max-width: 720px; line-height: 1.4; margin-top: 16px; }
+  .ob-hero .lede em { font-style: normal; font-weight: 700; color: var(--bid); }
+  .step-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 20px; }
+  .step-card { border: 1px solid var(--border); padding: 14px 14px; }
+  .step-card .step-num { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); margin-bottom: 6px; }
+  .step-card h3 { font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; }
+  .step-card p { font-size: 0.78rem; line-height: 1.4; color: var(--text-secondary); margin: 0; }
+  .ob-cta .final { font-size: clamp(1.5rem, 3vw, 2.2rem); font-weight: 700; margin-bottom: 14px; line-height: 1.1; }
+  .ob-cta .final em { font-style: normal; color: var(--bid); }
+  .ob-cta button.entrar { background: var(--text); color: #fff; border: none; padding: 16px 36px; font-family: inherit; font-size: 0.95rem; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; cursor: pointer; margin-top: 18px; transition: background 0.2s; }
+  .ob-cta button.entrar:hover { background: var(--bid); }
+  .scroll-hint { position: absolute; bottom: 24px; right: 32px; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); opacity: 0.6; }
+  .scroll-hint::after { content: '\2193'; display: block; font-size: 1.2rem; margin-top: 6px; animation: bob 1.6s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0); opacity: 0.5; } 50% { transform: translateY(6px); opacity: 1; } }
+  @media (max-width: 720px) { .ob-section { grid-template-columns: 1fr; } .ob-flor-wrap { max-width: 240px; } }
+</style>
+</head>
+<body>
+
+<div class="ob-overlay" id="obOverlay">
+
+  <div class="ob-progress"><div class="ob-progress-bar" id="obProgress"></div></div>
+  <div class="ob-topbar"><button class="ob-close-btn" id="obClose">&times; Saltar</button></div>
+
+  <!-- 00 · HERO -->
+  <section class="ob-section hero ob-hero">
+    <div class="num" data-anim="num">00</div>
+    <h2 data-anim="title">Lo raro<br/>es pol&iacute;tico.</h2>
+    <p class="lede" data-anim="lede">Esto es <em>Huaca, Sistemas M&aacute;gicos</em>: un archivo vivo de hechos an&oacute;malos. Cada pieza es un voxel generado por IA, subastado en Sepolia, registrado en blockchain.</p>
+    <p data-anim="meta" style="margin-top:32px; font-size:0.75rem; letter-spacing:2px; text-transform:uppercase; color: var(--text-secondary);">Antes de Pujar &middot; 90 segundos</p>
+    <div class="scroll-hint" data-anim="hint">scroll</div>
+  </section>
+
+  <!-- 01 · HELECHO -->
+  <section class="ob-section">
+    <div class="ob-flor-wrap" data-flor="helecho"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">01</div>
+      <h2 data-anim="title">Qu&eacute; est&aacute;s viendo.</h2>
+      <p data-anim="p">Un <strong>scraper aut&oacute;nomo</strong> busca hechos an&oacute;malos en redes sociales. Un LLM decide cu&aacute;les merecen preservarse. Cada hecho se transforma en un voxel 3D con su propia paleta.</p>
+      <p data-anim="p">El voxel se sube a IPFS, se acu&ntilde;a como NFT en Sepolia y se subasta en ETH de prueba.</p>
+    </div>
+  </section>
+
+  <!-- 02 · BROTE -->
+  <section class="ob-section">
+    <div class="ob-flor-wrap" data-flor="brote"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">02</div>
+      <h2 data-anim="title">Para pujar,<br/>4 pasos.</h2>
+      <p data-anim="p">No necesitas saber de crypto. Esto es una <strong>red de prueba</strong>: el ETH no es real, solo pagas gas (fracciones de centavos).</p>
+      <div class="step-grid" data-anim="grid">
+        <div class="step-card"><div class="step-num">01</div><h3>WALLET</h3><p>Instala MetaMask, crea cuenta, guarda tu frase seed en papel.</p></div>
+        <div class="step-card"><div class="step-num">02</div><h3>FONDOS</h3><p>Estamos en Sepolia. Copia tu address, p&eacute;galo en un faucet.</p></div>
+        <div class="step-card"><div class="step-num">03</div><h3>PUJAR</h3><p>CONNECT WALLET, espera el verde, click en PUJAR, confirma.</p></div>
+        <div class="step-card"><div class="step-num">04</div><h3>LIQUIDAR</h3><p>Cuando termina el tiempo, click SETTLE. Si ganaste, el ETH vuelve y el NFT queda tuyo.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 03 · AZUCENA -->
+  <section class="ob-section">
+    <div class="ob-flor-wrap" data-flor="azucena"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">03</div>
+      <h2 data-anim="title">Lo que <em style="color:#c2410c">nunca</em><br/>debes hacer.</h2>
+      <p data-anim="p"><strong>Nunca</strong> compartas tu frase seed. Nadie leg&iacute;timo te la va a pedir.</p>
+      <p data-anim="p"><strong>Nunca</strong> apruebes una transacci&oacute;n que no entiendes.</p>
+      <p data-anim="p"><strong>Nunca</strong> uses la red principal (Mainnet) por accidente. Verifica que MetaMask diga "Sepolia".</p>
+    </div>
+  </section>
+
+  <!-- 04 · ORQUÍDEA -->
+  <section class="ob-section ob-cta">
+    <div class="ob-flor-wrap" data-flor="orquidea"></div>
+    <div class="ob-text">
+      <div class="num" data-anim="num">04</div>
+      <h2 class="final" data-anim="title">Listo. <em>Lo raro te espera.</em></h2>
+      <p data-anim="p">5 secciones, una flor. Lo que era semilla ahora es orqu&iacute;dea.</p>
+      <button class="entrar" data-anim="btn" id="obEnter">Entrar a la galer&iacute;a &rarr;</button>
+    </div>
+  </section>
+
+  <label class="ob-toggle"><input type="checkbox" id="obNoShow" /><span>No mostrar de nuevo</span></label>
+</div>
+
+<script>
+// ============================================================
+// p5.js v1 (classic) — instance mode sketch per .ob-flor-wrap
+// Uses 2D canvas + bezier() for organic petals. No WebGL, no shaders.
+// Each flower type has its own render function but they all share
+// the same draw loop and the same per-petal bezier helper.
+// ============================================================
+
+// Petal silhouette using bezier curves.
+// (cx, cy) is the base; angle is in radians; len is petal length.
+function drawPetal(cx, cy, angle, len, width, color, alpha) {
+  push();
+  translate(cx, cy);
+  rotate(angle);
+  noStroke();
+  fill(color[0], color[1], color[2], alpha);
+  beginShape();
+  vertex(0, 0);
+  bezierVertex(width, -len * 0.3, width * 1.1, -len * 0.7, 0, -len);
+  bezierVertex(-width * 1.1, -len * 0.7, -width, -len * 0.3, 0, 0);
+  endShape(CLOSE);
+  pop();
+}
+
+// Spawn N petals around the center, each slightly rotated.
+function drawFlowerRing(cx, cy, n, baseRadius, petalLen, petalWidth, angleSpread, angleOffset, color, alpha, jitterFn) {
+  for (let i = 0; i < n; i++) {
+    const t = n === 1 ? 0.5 : i / (n - 1);
+    const angle = angleOffset + (t - 0.5) * angleSpread * (PI / 180);
+    // Slight per-petal length variation for organic feel
+    const lenVar = petalLen * (0.85 + 0.3 * jitterFn(i));
+    const widVar = petalWidth * (0.85 + 0.3 * jitterFn(i + 100));
+    drawPetal(cx, cy, angle, lenVar, widVar, color, alpha);
+  }
+}
+
+// Seeded RNG so each section is reproducible
+function makeRng(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 9301 + 49297) % 233280;
+    return s / 233280;
+  };
+}
+
+const FLOWER_CONFIGS = {
+  helecho: {
+    petalCount: 18,
+    petalLen: 70,
+    petalWidth: 14,
+    angleSpread: 360,
+    color: [22, 101, 52],    // #166534
+    centerColor: [40, 80, 50],
+    breathAmt: 0.04,
+    seed: 11,
+  },
+  brote: {
+    petalCount: 9,
+    petalLen: 45,
+    petalWidth: 18,
+    angleSpread: 200,
+    color: [22, 101, 52],
+    centerColor: [80, 140, 90],
+    breathAmt: 0.08,
+    seed: 23,
+  },
+  azucena: {
+    petalCount: 11,
+    petalLen: 60,
+    petalWidth: 20,
+    angleSpread: 360,
+    color: [22, 101, 52],
+    centerColor: [10, 10, 10],
+    breathAmt: 0.05,
+    seed: 47,
+  },
+  orquidea: {
+    petalCount: 5,
+    petalLen: 80,
+    petalWidth: 28,
+    angleSpread: 280,        // asymmetric gap
+    color: [22, 101, 52],
+    accentColor: [194, 65, 12], // #c2410c
+    accentCount: 2,
+    centerColor: [10, 10, 10],
+    breathAmt: 0.06,
+    seed: 73,
+  },
+};
+
+document.querySelectorAll('[data-flor]').forEach((host) => {
+  const cfg = FLOWER_CONFIGS[host.dataset.flor];
+  if (!cfg) return;
+
+  const sketch = (p) => {
+    let rng;
+    let t0 = 0;
+
+    p.setup = () => {
+      const size = Math.min(host.clientWidth || 460, host.clientHeight || 460);
+      const canvas = p.createCanvas(size, size);
+      canvas.parent(host);
+      p.pixelDensity(1);
+      rng = makeRng(cfg.seed);
+    };
+
+    p.draw = () => {
+      if (!t0) t0 = p.millis();
+      const t = (p.millis() - t0) * 0.001;
+      p.clear();   // transparent background — page is white
+      p.translate(p.width / 2, p.height / 2);
+
+      // Whole-flower breathing scale
+      const breath = 1 + Math.sin(t * 0.6) * cfg.breathAmt;
+      p.scale(breath);
+
+      // Outer ring of petals
+      drawFlowerRing(0, 0, cfg.petalCount, 0, cfg.petalLen, cfg.petalWidth,
+        cfg.angleSpread, -p.HALF_PI, cfg.color, 200, rng);
+
+      // Optional accent ring (orquídea)
+      if (cfg.accentColor && cfg.accentCount) {
+        drawFlowerRing(0, 0, cfg.accentCount, 0, cfg.petalLen * 0.55, cfg.petalWidth * 0.5,
+          cfg.angleSpread * 0.5, -p.HALF_PI + 0.3, cfg.accentColor, 220, rng);
+      }
+
+      // Center
+      p.noStroke();
+      p.fill(cfg.centerColor[0], cfg.centerColor[1], cfg.centerColor[2], 240);
+      p.circle(0, 0, cfg.petalWidth * 0.7);
+    };
+  };
+
+  // p5 v1 instance mode attaches to host element
+  new p5(sketch, host);
+});
+</script>
+
+<script>
+(function(){
+  // ====== ONBOARDING OVERLAY UI ======
+  if (typeof window === 'undefined') return;
+  const ob = document.getElementById('obOverlay');
+  if (!ob) return;
+  const bar = document.getElementById('obProgress');
+  const toggle = document.getElementById('obNoShow');
+  const SKIP_KEY = 'huaca-ob-skip-v1';
+
+  try { if (localStorage.getItem(SKIP_KEY) === '1') ob.classList.add('hidden'); } catch(e) {}
+
+  function close(){
+    try { if (toggle && toggle.checked) localStorage.setItem(SKIP_KEY, '1'); } catch(e) {}
+    ob.classList.add('hidden');
+  }
+  function open(){
+    ob.classList.remove('hidden');
+    ob.scrollTop = 0;
+    bar.style.width = '0%';
+  }
+
+  document.getElementById('obClose').addEventListener('click', close);
+  document.getElementById('obEnter').addEventListener('click', close);
+
+  ob.addEventListener('scroll', () => {
+    if (ob.scrollHeight <= ob.clientHeight) return;
+    bar.style.width = (ob.scrollTop / (ob.scrollHeight - ob.clientHeight) * 100) + '%';
+  });
+
+  function revealText(entries) {
+    entries.forEach(e => {
+      if (!e.isIntersecting || e.target.dataset.shown) return;
+      const el = e.target;
+      el.style.transition = 'opacity 0.7s ease-out, transform 0.7s ease-out';
+      el.style.opacity = '1';
+      el.style.transform = 'translateY(0)';
+      el.dataset.shown = '1';
+    });
+  }
+  document.querySelectorAll('[data-anim]').forEach(el => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateY(16px)';
+  });
+  const textObserver = new IntersectionObserver(revealText, { root: ob, threshold: 0.25 });
+  document.querySelectorAll('[data-anim]').forEach(el => textObserver.observe(el));
+
+  setTimeout(() => {
+    document.querySelectorAll('.ob-hero [data-anim]').forEach(t => {
+      t.style.transition = 'opacity 0.9s ease-out, transform 0.9s ease-out';
+      t.style.opacity = '1';
+      t.style.transform = 'translateY(0)';
+    });
+  }, 200);
+
+  window.__openOnboarding = open;
+})();
+</script>
+
+</body>
+</html>

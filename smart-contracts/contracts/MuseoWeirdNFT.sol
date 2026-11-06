@@ -25,17 +25,17 @@ contract MuseoWeirdNFT is ERC721, ERC2981, Ownable {
     /// @notice Address of the auction contract (optional, for cross-contract integration)
     address public auctionContract;
 
-    uint96 private constant ROYALTY_FEE_NUMERATOR = 750; // 7.5%
+    uint96 private constant ROYALTY_FEE_NUMERATOR = 1500; // 15% (default)
 
     event NFTMinted(uint256 indexed tokenId, address indexed to, string tokenURI);
     event MetadataUpdated(uint256 indexed tokenId, string newURI);
     event AuctionContractSet(address indexed auctionContract);
 
-    constructor(address initialOwner)
+    constructor(address initialOwner, address royaltyReceiver)
         ERC721("Museo Weird", "MWEIRD")
         Ownable(initialOwner)
     {
-        _setDefaultRoyalty(initialOwner, ROYALTY_FEE_NUMERATOR);
+        _setDefaultRoyalty(royaltyReceiver, ROYALTY_FEE_NUMERATOR);
     }
 
     /**
@@ -58,10 +58,9 @@ contract MuseoWeirdNFT is ERC721, ERC2981, Ownable {
     }
 
     /**
-     * @notice Update metadata URI for an existing token (only token owner).
+     * @notice Update metadata URI for an existing token (only owner/admin).
      */
-    function updateMetadata(uint256 tokenId, string calldata newURI) external {
-        require(_ownerOf(tokenId) == msg.sender, "MuseoWeirdNFT: Not token owner");
+    function updateMetadata(uint256 tokenId, string calldata newURI) external onlyOwner {
         require(bytes(newURI).length > 0, "MuseoWeirdNFT: tokenURI required");
 
         _tokenURIs[tokenId] = newURI;
@@ -75,6 +74,17 @@ contract MuseoWeirdNFT is ERC721, ERC2981, Ownable {
         require(_auctionContract != address(0), "MuseoWeirdNFT: zero address");
         auctionContract = _auctionContract;
         emit AuctionContractSet(_auctionContract);
+    }
+
+    /**
+     * @notice Update the default royalty (receiver + fee in basis points).
+     * @param receiver Address that will receive royalties on secondary sales.
+     * @param feeNumerator Royalty in basis points (e.g. 1500 = 15%).
+     */
+    function setDefaultRoyalty(address receiver, uint96 feeNumerator) external onlyOwner {
+        require(receiver != address(0), "MuseoWeirdNFT: zero receiver");
+        require(feeNumerator <= 5000, "MuseoWeirdNFT: royalty too high"); // max 50%
+        _setDefaultRoyalty(receiver, feeNumerator);
     }
 
     function totalSupply() external view returns (uint256) {

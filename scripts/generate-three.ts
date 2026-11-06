@@ -111,6 +111,23 @@ interface VoxelGrid {
 // already fits the budget we return it as-is so short texts aren't truncated.
 function smartTruncate(text: string, maxLines: number, maxCharsPerLine: number): string {
   const budget = maxLines * maxCharsPerLine;
+
+  // Defensive: if the text (even a SHORT one) trails off mid-sentence without
+  // a closing punctuation mark, cut it back to the last complete sentence.
+  // This catches LLM-extracted fragments like "…candidatura de" that end
+  // with no period. A complete thought beats a longer fragment.
+  if (!/[.!?¿¡]$/.test(text.trim())) {
+    const lastBoundary = Math.max(
+      text.lastIndexOf(". "),
+      text.lastIndexOf("? "),
+      text.lastIndexOf("! "),
+      text.lastIndexOf("…"),
+    );
+    if (lastBoundary > text.length * 0.4) {
+      text = text.slice(0, lastBoundary + 1).trim();
+    }
+  }
+
   if (text.length <= budget) return text;
   const slice = text.slice(0, budget);
   const lastPeriod = Math.max(
@@ -207,9 +224,55 @@ function sampleTextLine(line: string): VoxelGrid {
   };
 }
 
+// Normalize characters that the 5x7 glyph set doesn't have into ones it does,
+// so smart quotes/dashes/ellipses never render as a stray "?" glyph.
+// (Added 2026-08-28 with the punctuation/orthography fix.)
+// 2026-09-02: track which unsupported chars we've logged so we don't spam.
+// Attached as a function property (TS allows this when declared with ` // eslint-disable-next-line @typescript-eslint/no-explicit-any`).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const normalizeForVoxelLogged = new Set<string>();
+function normalizeForVoxel(text: string): string {
+  return text
+    // Curly/smart double quotes + guillemets → straight double quote
+    .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g, '"')
+    // Curly single quotes → straight apostrophe
+    .replace(/[\u2018\u2019\u201A\u02BB]/g, "'")
+    // En/em/em-dash variants → plain hyphen
+    .replace(/[\u2013\u2014\u2011\u2012\u2212]/g, "-")
+    // Ellipsis → three dots
+    .replace(/\u2026/g, "...")
+    // Non-breaking space → normal space
+    .replace(/\u00A0/g, " ")
+    // 2026-09-02: defensive lower-case accents (áéíóúü) → uppercase (ÁÉÍÓÚÜ).
+    // Without this, .toUpperCase() later would convert them, but if the
+    // glyph set has only uppercase versions, a leftover lowercase accent
+    // would silently fall back to "?". The voxel text is rendered uppercase
+    // anyway, so we normalize all Spanish accents up-front.
+    .replace(/[\u00E1\u00E9\u00ED\u00F3\u00FA\u00FC]/g, (m) => m.toUpperCase())
+    // Lowercase ñ → Ñ (same reason; voxel renders uppercase)
+    .replace(/\u00F1/g, "\u00D1")
+    // Any remaining chars outside the glyph set get logged + replaced with "?"
+    // (the fallback glyph). This is a SAFETY NET: in the past, an LLM-extracted
+    // text containing rare Unicode (e.g. U+2010 hyphen, U+202F narrow nbsp)
+    // would silently render as "?" without anyone noticing. Now we at least
+    // record what got stripped so the next round of glyph design can fill gaps.
+    .replace(/[^\u00BF\u00A1A-Za-z0-9 .,;:!?\\'"()\-ÁÉÍÓÚÑÜáéíóúñü$%#¿¡]/g, (m) => {
+      // Log only the first occurrence per char (don't spam the log)
+      const key = `normalizev-unknown-${m.charCodeAt(0).toString(16)}`;
+      if (!normalizeForVoxelLogged.has(key)) {
+        normalizeForVoxelLogged.add(key);
+        // Print a warning so future maintainers see it in the agent log.
+        // (console.warn is safe in Node.)
+        // eslint-disable-next-line no-console
+        console.warn(`normalizeForVoxel: replacing unsupported char U+${m.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")} ("${m}") with "?"`);
+      }
+      return "?";
+    });
+}
+
 // Sample a multi-line voxel sculpture: each line stacked vertically.
 function sampleTextToVoxelsMultiline(text: string): VoxelGrid {
-  const lines = wrappedLines(text);
+  const lines = wrappedLines(normalizeForVoxel(text));
   const charH = 7;
   const lineSpacing = charH + 4; // rows between lines
 
@@ -294,12 +357,28 @@ function buildGlyphSet(w: number, h: number): Record<string, number[][]> {
     ".": [".....", ".....", ".....", ".....", ".....", ".....", "..1.."],
     ":": [".....", "..1..", "..1..", ".....", "..1..", "..1..", "....."],
     "!": ["..1..", "..1..", "..1..", "..1..", "..1..", ".....", "..1.."],
-    "?": [".111.", "1...1", "....1", "...1.", "..1..", ".....", "..1.."],
+    "?": [".111.", "1...1", "....1", "...1.", "..1..", ".1...", "..1.."],
+    "$": ["..1..", ".1111", "1.1..", ".111.", "..1.1", "1111.", "..1.."],
+    "%": ["11..1", "11.1.", "..1..", ".1...", "..1..", ".1.11", "1..11"],
+    "#": ["..1.1", "..1.1", "11111", "..1.1", "11111", "..1.1", "..1.1"],
     "Á": ["..1..", ".1.1.", "..1..", ".1.1.", "1...1", "11111", "1...1"],
     "É": ["..1..", "1....", "1....", "111..", "1....", "1....", "11111"],
     "Í": [".1...", "..1..", "..1..", "..1..", "..1..", "..1..", "11111"],
     "Ó": [".1...", ".111.", "1...1", "1...1", "1...1", "1...1", ".111."],
     "Ú": [".1...", "1...1", "1...1", "1...1", "1...1", "1...1", ".111."],
+    // --- Punctuation & Spanish chars added 2026-08-28 (ortho/punct fix) ---
+    // Before this, any char outside A-Z/0-9/Ñ/ÁÉÍÓÚ/,.!?:? rendered as "?",
+    // which is what stomped the quotes in "negacionismo climático", the
+    // semicolon in "OMS;", and the opening ¿¡ marks across pieces.
+    '"': ["..1.1", "..1.1", ".....", ".....", ".....", ".....", "....."],
+    "'": ["..1..", "..1..", ".....", ".....", ".....", ".....", "....."],
+    ";": [".....", ".....", "..1..", ".....", ".....", "..1..", ".1..."],
+    "-": [".....", ".....", ".....", ".111.", ".....", ".....", "....."],
+    "(": ["...1.", "..1..", "..1..", "..1..", "..1..", "..1..", "...1."],
+    ")": [".1...", "..1..", "..1..", "..1..", "..1..", "..1..", ".1..."],
+    "¿": ["..1..", "...1.", "..1..", ".1.1.", ".1...", "1....", ".111."],
+    "¡": ["..1..", ".....", "..1..", "..1..", "..1..", "..1..", "..1.."],
+    "Ü": ["1.1.1", "1.1.1", "1...1", "1...1", "1...1", "1...1", ".111."],
   };
 
   const out: Record<string, number[][]> = {};
@@ -872,7 +951,7 @@ export async function generateThreeArtwork(
 }
 
 function detectLanguage(text: string): string {
-  if (/[ñáéíóú¿¡]/i.test(text)) return "es";
+  if (/[ñáéíóú$%#¿¡]/i.test(text)) return "es";
   if (/[àâçèéêëîïôûùüÿœæ]/i.test(text)) return "fr";
   if (/[äöüß]/i.test(text)) return "de";
   return "en";

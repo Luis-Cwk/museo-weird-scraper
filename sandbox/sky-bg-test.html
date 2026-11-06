@@ -1,0 +1,67 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Sky A/B Test</title>
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block;width:100vw;height:100vh}</style>
+</head><body>
+<canvas id="c"></canvas>
+<div style="position:fixed;top:8px;left:8px;color:#fff;background:rgba(0,0,0,0.6);padding:8px;font:11px monospace;z-index:99;max-width:380px;line-height:1.4">
+<b>TEST: scene.background = tex (Three.js native sky)</b><br>
+- sky wraps with no seam<br>
+- camera FOV 70°<br>
+- sculpture in front<br>
+<br>
+<b>EXPECTED:</b> sky covers ENTIRE viewport, no visible edge
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+<script type="module">
+import * as THREE from 'three';
+
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias: true});
+renderer.setPixelRatio(1);
+renderer.setSize(window.innerWidth, window.innerHeight);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.1, 200);
+camera.position.set(0, 0, 0);
+
+// Lights
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+const sun = new THREE.DirectionalLight(0xffffff, 1.5);
+sun.position.set(5, 10, 7);
+scene.add(sun);
+
+// Sculpture (mini)
+const sculpture = new THREE.Group();
+const letters = 'DURO TEMBLOR HOY EN COLOMBIA';
+for (let i = 0; i < 60; i++) {
+  const c = new THREE.Mesh(
+    new THREE.BoxGeometry(0.18, 0.18, 0.18),
+    new THREE.MeshStandardMaterial({color: 0xffffff, metalness: 0.3, roughness: 0.5, emissive: 0x222222})
+  );
+  c.position.set((Math.random()-0.5)*1.5, (Math.random()-0.5)*5, (Math.random()-0.5)*0.5);
+  sculpture.add(c);
+}
+sculpture.position.set(0, 0, -5);
+scene.add(sculpture);
+
+// Load sky AFTER sculpture (so first frame has sculpture ready)
+new THREE.TextureLoader().load('textures/sky-8813.png', (tex) => {
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  scene.background = tex;
+  
+  // Single render — no animation, no rotation
+  renderer.render(scene, camera);
+  console.log('SCENE_BG_TEST: rendered, size', window.innerWidth, 'x', window.innerHeight);
+});
+
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.render(scene, camera);
+});
+</script>
+</body></html>

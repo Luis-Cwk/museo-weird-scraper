@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+<meta http-equiv="Pragma" content="no-cache" />
+<meta http-equiv="Expires" content="0" />
+<title>Huaca, Sistemas Mágicos · Lo raro es político</title>
+<meta name="description" content="Huaca, Sistemas Mágicos: archivo vivo de hechos anómalos. Subastar lo raro es una forma de no olvidar — y de financiarlo." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
+<style>
+  :root { --bg: #ffffff; --text: #000000; --text-secondary: rgba(0, 0, 0, 0.6); --border: rgba(0, 0, 0, 0.1); --border-strong: rgba(0, 0, 0, 0.2); --warn: #c2410c; --bid: #166534; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body { font-family: 'Space Grotesk', -apple-system, BlinkMacSystemFont, sans-serif; background: var(--bg); color: var(--text); line-height: 1.5; -webkit-font-smoothing: antialiased; overflow-x: hidden; }
+  nav { position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); }
+  .nav-container { max-width: 1400px; margin: 0 auto; padding: 18px 3vw; display: flex; justify-content: space-between; align-items: center; }
+  .nav-brand { font-size: clamp(1.3rem, 3vw, 1.7rem); font-weight: 700; letter-spacing: 2px; text-transform: uppercase; text-decoration: none; color: var(--text); }
+  .nav-meta { display: flex; gap: 1.5vw; font-size: 0.7rem; align-items: center; }
+  .nav-meta a { color: var(--text); text-decoration: none; border-bottom: 1px solid var(--border-strong); }
+  .nav-meta a:hover { border-bottom-color: var(--text); }
+  .btn-connect { background: transparent; color: var(--text); border: 1px solid var(--border-strong); padding: 8px 14px; font-family: inherit; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1.5px; cursor: pointer; transition: all 0.2s; }
+  .btn-connect:hover { background: var(--text); color: #fff; }
+  .btn-connect.connected { background: var(--bid); color: #fff; border-color: var(--bid); }
+
+  header.hero { max-width: 1400px; margin: 0 auto; padding: clamp(40px, 8vw, 100px) 3vw 60px; border-bottom: 1px solid var(--border); }
+  .hero-tag { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); margin-bottom: 18px; }
+  h1 { font-size: clamp(2.5rem, 8vw, 6rem); font-weight: 700; letter-spacing: -0.03em; line-height: 0.95; margin-bottom: 24px; }
+  h1 .h-letter { display: inline-block; opacity: 0; transform: translateY(20px); transition: opacity 0.5s ease, transform 0.5s ease; }
+  h1.animate .h-letter { opacity: 1; transform: translateY(0); }
+  h1 .h-letter:nth-child(1) { transition-delay: 0.00s; }
+  h1 .h-letter:nth-child(2) { transition-delay: 0.04s; }
+  h1 .h-letter:nth-child(3) { transition-delay: 0.08s; }
+  h1 .h-letter:nth-child(4) { transition-delay: 0.12s; }
+  h1 .h-letter:nth-child(5) { transition-delay: 0.16s; }
+  h1 .h-letter:nth-child(6) { transition-delay: 0.20s; }
+  h1 .h-letter:nth-child(7) { transition-delay: 0.24s; }
+  h1 .h-letter:nth-child(8) { transition-delay: 0.28s; }
+  h1 .h-letter:nth-child(9) { transition-delay: 0.32s; }
+  h1 .h-letter:nth-child(10) { transition-delay: 0.36s; }
+  h1 .h-letter:nth-child(11) { transition-delay: 0.40s; }
+  h1 .h-letter:nth-child(12) { transition-delay: 0.44s; }
+  h1 .h-letter:nth-child(13) { transition-delay: 0.48s; }
+  h1 .h-letter:nth-child(14) { transition-delay: 0.52s; }
+  h1 .h-letter:nth-child(15) { transition-delay: 0.56s; }
+  h1 .h-letter:nth-child(16) { transition-delay: 0.60s; }
+  h1 .h-letter:nth-child(17) { transition-delay: 0.64s; }
+  h1 .h-letter:nth-child(18) { transition-delay: 0.68s; }
+  h1 .h-letter:nth-child(19) { transition-delay: 0.72s; }
+  h1 .h-letter:nth-child(20) { transition-delay: 0.76s; }
+  h1 .h-letter:nth-child(21) { transition-delay: 0.80s; }
+  h1 .h-letter:nth-child(22) { transition-delay: 0.84s; }
+  h1 .h-accent { color: var(--bid); }
+  .hero-sub { font-size: clamp(1rem, 2vw, 1.3rem); font-weight: 300; color: var(--text-secondary); max-width: 600px; line-height: 1.5; }
+  .hero-sub em { font-style: normal; font-weight: 600; color: var(--text); border-bottom: 2px solid var(--text); padding-bottom: 1px; }
+  .hero-sub strong { font-weight: 600; color: var(--text); }
+  .hero-quote { margin-top: 24px; font-size: 0.85rem; font-weight: 400; color: var(--text-secondary); font-style: italic; letter-spacing: 0.02em; max-width: 600px; }
+  .hero-stats { display: flex; gap: 3vw; margin-top: 40px; padding-top: 24px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+  .hero-stat { display: flex; flex-direction: column; }
+  .hero-stat-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 2px; color: var(--text-secondary); }
+  .hero-stat-value { font-size: 1.5rem; font-weight: 600; margin-top: 4px; }
+  .hero-stat-value code { font-size: 0.85rem; font-weight: 400; font-family: 'Space Grotesk', monospace; }
+
+  .grid { max-width: 1400px; margin: 0 auto; padding: 60px 3vw; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+  .card { border: 1px solid var(--border); background: #fff; display: flex; flex-direction: column; transition: border-color 0.2s; }
+  .card:hover { border-color: var(--border-strong); }
+  .card.ended { opacity: 0.7; }
+  .card.active { border-color: var(--bid); }
+  .card-art { width: 100%; aspect-ratio: 4 / 3; background: #fafafa; border-bottom: 1px solid var(--border); position: relative; overflow: hidden; }
+  .card-art iframe { width: 100%; height: 100%; border: none; display: block; pointer-events: none; }
+  .card-body { padding: 18px 20px 20px; flex: 1; display: flex; flex-direction: column; }
+  .card-title { font-size: 0.95rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 6px; }
+  .card-meta { font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 12px; font-family: 'Space Grotesk', monospace; }
+  .card-desc { font-size: 0.85rem; color: var(--text); line-height: 1.45; margin-bottom: 14px; flex: 1; }
+  .card-attrs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .attr { font-size: 0.6rem; text-transform: uppercase; letter-spacing: 1px; padding: 3px 8px; background: rgba(0,0,0,0.05); color: var(--text-secondary); border: 1px solid var(--border); }
+  .auction { border-top: 1px solid var(--border); padding-top: 12px; margin-bottom: 14px; }
+  .auction-row { display: flex; justify-content: space-between; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .auction-row .label { color: var(--text-secondary); }
+  .auction-row .value { color: var(--text); font-weight: 500; font-family: 'Space Grotesk', monospace; }
+  .auction-row .value.bid { color: var(--bid); font-weight: 600; font-size: 0.85rem; }
+  .auction-row .value.warn { color: var(--warn); font-weight: 600; }
+  .auction-row .value.live { color: var(--bid); font-weight: 600; }
+  .auction-row .value.live::before { content: '\1F7E2 '; }
+  .auction-row .value.status-cell.live { color: var(--bid); }
+  .auction-row .value.status-cell.warn { color: var(--warn); }
+  .card-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .card-actions a, .card-actions button { flex: 1; min-width: 80px; background: transparent; color: var(--text); border: 1px solid var(--border-strong); padding: 9px 10px; font-family: inherit; font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1.2px; cursor: pointer; transition: all 0.15s; text-align: center; text-decoration: none; }
+  .card-actions a:hover, .card-actions button:hover { background: var(--text); color: #fff; border-color: var(--text); }
+  .card-actions .btn-bid { background: var(--text); color: #fff; border-color: var(--text); }
+  .card-actions .btn-bid:hover { background: var(--bid); border-color: var(--bid); }
+  .card-actions .btn-bid:disabled { background: #ccc; border-color: #ccc; cursor: not-allowed; }
+  .card-actions .btn-settle { background: var(--warn); color: #fff; border-color: var(--warn); }
+  .card-actions .btn-settle:hover { background: var(--text); border-color: var(--text); }
+
+  .empty-state { text-align: center; padding: 80px 20px; color: var(--text-secondary); }
+  .empty-state h2 { font-size: 1.5rem; margin-bottom: 16px; color: var(--text); }
+  .empty-state p { font-size: 0.9rem; margin-bottom: 8px; }
+  .empty-state .code { font-family: 'Space Grotesk', monospace; background: rgba(0,0,0,0.05); padding: 8px 12px; display: inline-block; margin: 16px 0; font-size: 0.85rem; }
+
+  .loading-notice { background: #fef3c7; color: #92400e; padding: 12px; text-align: center; font-size: 0.85rem; margin-bottom: 20px; }
+  .last-updated { font-size: 0.7rem; color: var(--text-secondary); margin-top: 8px; text-align: center; }
+
+  .voxel-modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 9999; align-items: center; justify-content: center; }
+  .voxel-modal-bg.active { display: flex; }
+  .voxel-modal { width: 95vw; height: 90vh; background: #fff; border: none; box-shadow: 0 8px 40px rgba(0,0,0,0.4); }
+  .voxel-modal-close { position: fixed; top: 24px; right: 24px; background: #fff; color: #000; border: none; padding: 10px 16px; font-size: 0.75rem; cursor: pointer; z-index: 10000; letter-spacing: 2px; text-transform: uppercase; font-family: inherit; }
+  .voxel-modal-close:hover { background: var(--bid); color: #fff; }
+
+  footer { border-top: 1px solid var(--border); padding: 40px 3vw; text-align: center; font-size: 0.7rem; color: var(--text-secondary); letter-spacing: 1px; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-container">
+    <a href="https://petrasynthetic.com/" class="nav-brand">Huaca, Sistemas Mágicos</a>
+    <div class="nav-meta">
+      <a href="https://sepolia.etherscan.io/address/0xA47a22ee757a9697eAF8CFFCcf2cf18Fe1f2Ac4f" target="_blank" rel="noopener">Contrato ↗</a>
+      <a href="https://sepolia.etherscan.io/address/0xBbb749aa36f5188302d3AeA7C3A5a6A6fc194036" target="_blank" rel="noopener">Subastas ↗</a>
+      <button class="btn-connect" id="connectBtn">Connect Wallet</button>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="hero-tag">// archivo de lo que el canon no guarda · scraper → LLM guard → voxel → IPFS → Sepolia · MHSM · petrasynthetic.com/huaca</div>
+  <h1 id="hero-title">
+    <span class="h-letter">H</span><span class="h-letter">u</span><span class="h-letter">a</span><span class="h-letter">c</span><span class="h-letter">a</span><span class="h-letter">,</span><span class="h-letter">&nbsp;</span><span class="h-letter">S</span><span class="h-letter">i</span><span class="h-letter">s</span><span class="h-letter">t</span><span class="h-letter">e</span><span class="h-letter">m</span><span class="h-letter">a</span><span class="h-letter">s</span><br/><span class="h-letter h-accent">M</span><span class="h-letter h-accent">á</span><span class="h-letter h-accent">g</span><span class="h-letter h-accent">i</span><span class="h-letter h-accent">c</span><span class="h-letter h-accent">o</span><span class="h-letter h-accent">s</span><span class="h-letter">.</span>
+  </h1>
+  <p class="hero-sub">Cada hecho raro es una <em>grieta</em> en el canon. Donde el archivo oficial borra, lo raro preserva. Esta subasta no vende arte: <strong>subvenciona la memoria de lo anómalo</strong> — lo que no cabe en el museo, lo que no sale en la prensa, lo que sobrevive en reddit y bluesky a pesar del olvido.</p>
+  <p class="hero-quote">«Huaca era el término que ellos usaban para conocer todo lo santo, lo extraño. Cuando la monotonía de la naturaleza flaqueaba y se revelaba a viajes de excepciones, eso era para ellos Huaca.» — Édgar Negret</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="hero-stat-label">Edición</span><span class="hero-stat-value" id="totalSupply">0</span></div>
+    <div class="hero-stat"><span class="hero-stat-label">Red</span><span class="hero-stat-value">Sepolia</span></div>
+    <div class="hero-stat"><span class="hero-stat-label">NFT</span><span class="hero-stat-value"><code>0xA47a…Ac4f</code></span></div>
+    <div class="hero-stat"><span class="hero-stat-label">Auction</span><span class="hero-stat-value"><code>0xBbb7…4036</code></span></div>
+    <div class="hero-stat"><span class="hero-stat-label">Live</span><span class="hero-stat-value" id="liveCount">0</span></div>
+  </div>
+</header>
+
+<div class="loading-notice" id="loadingNotice">
+  Cargando estado del contrato. Esto puede tardar 5-10 segundos en la primera carga.
+</div>
+
+<main class="grid" id="grid">
+  <div class="empty-state" id="emptyState">
+    <h2>Colección recién desplegada</h2>
+    <p>El contrato de Huaca, Sistemas Mágicos está en blanco (0 NFTs minteados).</p>
+    <p>El agente autónomo va a empezar a mintear pronto. Espera unos minutos o ejecuta:</p>
+    <p class="code">node scripts/agent.js --once --limit=1</p>
+  </div>
+
+        <article class="card" data-id="0" data-token-id="0">
+          <div class="card-art">
+            <iframe src="voxel-111.html" loading="lazy" title="Voxel sculpture #111" sandbox="allow-scripts allow-same-origin"></iframe>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">Huaca, Sistemas Mágicos #111</h3>
+            <div class="card-meta">#111 · Sepolia · token 0</div>
+            <p class="card-desc">Seis especies de árboles serían claves para combatir contaminación del aire en Medellín</p>
+            <div class="card-attrs">
+              <span class="attr">Type: fact</span>
+              <span class="attr">Source: bsky:"contaminacion aire medellin"</span>
+            </div>
+            <div class="auction" data-token-id="0">
+              <div class="auction-row"><span class="label">Status</span><span class="value status-cell">cargando...</span></div>
+              <div class="auction-row"><span class="label">Bid actual</span><span class="value bid bid-cell">—</span></div>
+              <div class="auction-row"><span class="label">Bidder</span><span class="value bidder-cell">—</span></div>
+              <div class="auction-row"><span class="label">Seller</span><span class="value seller-cell">—</span></div>
+              <div class="auction-row"><span class="label">Termina</span><span class="value time-cell">—</span></div>
+            </div>
+            <div class="card-actions">
+              <button onclick="openVoxel('voxel-111.html')">▶ Ver voxel</button>
+              <a href="https://sepolia.etherscan.io/token/0x37F570f578bE0FA3cF62C1e51b0FfBD566d0D43a?a=0" target="_blank" rel="noopener">Token ↗</a>
+              <button class="btn-bid" data-token-id="0" data-bid-amount="0.001">Pujar</button>
+              <button class="btn-settle" data-token-id="0" style="display:none">Settle</button>
+              <a href="https://sepolia.etherscan.io/address/0xaF0DDb90464F471E038613aB40cB7A5C4d9b8A0f" target="_blank" rel="noopener">Subasta ↗</a>
+            </div>
+          </div>
+        </article>
+      
+        <article class="card" data-id="1" data-token-id="1">
+          <div class="card-art">
+            <iframe src="voxel-112.html" loading="lazy" title="Voxel sculpture #112" sandbox="allow-scripts allow-same-origin"></iframe>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">Huaca, Sistemas Mágicos #112</h3>
+            <div class="card-meta">#112 · Sepolia · token 1</div>
+            <p class="card-desc">Seis especies de árboles serían claves para combatir contaminación del aire en Medellín, según estudio de la UdeA.</p>
+            <div class="card-attrs">
+              <span class="attr">Type: fact</span>
+              <span class="attr">Source: bsky:"calidad del aire medellin"</span>
+            </div>
+            <div class="auction" data-token-id="1">
+              <div class="auction-row"><span class="label">Status</span><span class="value status-cell">cargando...</span></div>
+              <div class="auction-row"><span class="label">Bid actual</span><span class="value bid bid-cell">—</span></div>
+              <div class="auction-row"><span class="label">Bidder</span><span class="value bidder-cell">—</span></div>
+              <div class="auction-row"><span class="label">Seller</span><span class="value seller-cell">—</span></div>
+              <div class="auction-row"><span class="label">Termina</span><span class="value time-cell">—</span></div>
+            </div>
+            <div class="card-actions">
+              <button onclick="openVoxel('voxel-112.html')">▶ Ver voxel</button>
+              <a href="https://sepolia.etherscan.io/token/0x37F570f578bE0FA3cF62C1e51b0FfBD566d0D43a?a=1" target="_blank" rel="noopener">Token ↗</a>
+              <button class="btn-bid" data-token-id="1" data-bid-amount="0.001">Pujar</button>
+              <button class="btn-settle" data-token-id="1" style="display:none">Settle</button>
+              <a href="https://sepolia.etherscan.io/address/0xaF0DDb90464F471E038613aB40cB7A5C4d9b8A0f" target="_blank" rel="noopener">Subasta ↗</a>
+            </div>
+          </div>
+        </article>
+      
+        <article class="card" data-id="0" data-token-id="0">
+          <div class="card-art">
+            <iframe src="voxel-1.html" loading="lazy" title="Voxel sculpture #1" sandbox="allow-scripts allow-same-origin"></iframe>
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">Huaca, Sistemas Mágicos #1</h3>
+            <div class="card-meta">#1 · Sepolia · token 0</div>
+            <p class="card-desc">el deslizamiento en Granizal es considerado el más grande en la historia reciente del Valle de Aburrá</p>
+            <div class="card-attrs">
+              <span class="attr">Type: fact</span>
+              <span class="attr">Source: bsky:"deslizamiento medellin"</span>
+            </div>
+            <div class="auction" data-token-id="0">
+              <div class="auction-row"><span class="label">Status</span><span class="value status-cell">cargando...</span></div>
+              <div class="auction-row"><span class="label">Bid actual</span><span class="value bid bid-cell">—</span></div>
+              <div class="auction-row"><span class="label">Bidder</span><span class="value bidder-cell">—</span></div>
+              <div class="auction-row"><span class="label">Seller</span><span class="value seller-cell">—</span></div>
+              <div class="auction-row"><span class="label">Termina</span><span class="value time-cell">—</span></div>
+            </div>
+            <div class="card-actions">
+              <button onclick="openVoxel('voxel-1.html')">▶ Ver voxel</button>
+              <a href="https://sepolia.etherscan.io/token/0x87E57042C8a4cd95D3aF635940294802aabfFc85?a=0" target="_blank" rel="noopener">Token ↗</a>
+              <button class="btn-bid" data-token-id="0" data-bid-amount="0.001">Pujar</button>
+              <button class="btn-settle" data-token-id="0" style="display:none">Settle</button>
+              <a href="https://sepolia.etherscan.io/address/0x54dEdeBC156044E3de51f54264Db26eC393bbB0D" target="_blank" rel="noopener">Subasta ↗</a>
+            </div>
+          </div>
+        </article>
+      </main>
+
+<p class="last-updated" id="lastUpdated">Última actualización: —</p>
+
+<footer>
+  Huaca, Sistemas Mágicos · Petra · Sepolia · 2026 · petrasynthetic.com/huaca
+</footer>
+
+<div id="voxel-modal-bg" class="voxel-modal-bg">
+  <button class="voxel-modal-close" onclick="closeVoxel()">CERRAR ✕</button>
+  <iframe id="voxel-modal-iframe" class="voxel-modal" src="about:blank"></iframe>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var title = document.getElementById('hero-title');
+  if (!title) return;
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (reduce) { title.classList.add('animate'); return; }
+  requestAnimationFrame(function () {
+    setTimeout(function () { title.classList.add('animate'); }, 120);
+  });
+});
+
+function openVoxel(url) {
+  var bg = document.getElementById('voxel-modal-bg');
+  var iframe = document.getElementById('voxel-modal-iframe');
+  if (!bg || !iframe) return;
+  iframe.src = url;
+  bg.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+function closeVoxel() {
+  var bg = document.getElementById('voxel-modal-bg');
+  var iframe = document.getElementById('voxel-modal-iframe');
+  if (!bg || !iframe) return;
+  bg.classList.remove('active');
+  iframe.src = 'about:blank';
+  document.body.style.overflow = '';
+}
+document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeVoxel(); });
+</script>
+
+<script>
+// === ON-CHAIN REAL-TIME DATA ===
+const NFT_CONTRACT = '0xA47a22ee757a9697eAF8CFFCcf2cf18Fe1f2Ac4f';
+const AUCTION_CONTRACT = '0xBbb749aa36f5188302d3AeA7C3A5a6A6fc194036';
+const AUCTION_ABI = [
+  'function getAuction(address nftContract, uint256 tokenId) view returns (tuple(address seller, uint256 tokenId, uint256 startingBid, uint256 highestBid, address highestBidder, uint256 endTime, bool settled, bool cancelled))',
+  'function bid(address nftContract, uint256 tokenId) payable',
+  'function finalizeAuction(address nftContract, uint256 tokenId)',
+  'function cancelAuction(address nftContract, uint256 tokenId)',
+];
+const SEPOLIA_CHAIN_ID = 11155111n;
+
+let userAddress = null;
+let userIsSeller = {};
+let readProvider = null;
+let writeProvider = null;
+let writeContract = null;
+let auctionData = {};
+
+const POLL_INTERVAL_MS = 8000;
+
+function shortAddr(a) {
+  if (!a || a === '0x0000000000000000000000000000000000000000') return '—';
+  return a.slice(0, 6) + '…' + a.slice(-4);
+}
+
+function formatTimeRemaining(secs) {
+  if (secs <= 0) return 'finalizada';
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (d > 0) return d + 'd ' + h + 'h';
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+
+async function connectWallet() {
+  if (typeof window.ethereum === 'undefined') {
+    alert('Necesitas MetaMask o Rabby Wallet.\nhttps://metamask.io o https://rabby.io');
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    userAddress = accounts[0];
+    const network = await window.ethereum.request({ method: 'eth_chainId' });
+    if (parseInt(network, 16) !== Number(SEPOLIA_CHAIN_ID)) {
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0xaa36a7' }],
+        });
+      } catch (e) {
+        alert('Cambia a Sepolia testnet (chainId 11155111) en tu wallet.');
+      }
+    }
+    writeProvider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await writeProvider.getSigner();
+    writeContract = new ethers.Contract(AUCTION_CONTRACT, AUCTION_ABI, signer);
+    updateUI();
+    refreshAll();
+  } catch (e) {
+    console.error('connect failed', e);
+    alert('No se pudo conectar: ' + (e.message || e));
+  }
+}
+
+function updateUI() {
+  const btn = document.getElementById('connectBtn');
+  if (userAddress) {
+    btn.textContent = shortAddr(userAddress);
+    btn.classList.add('connected');
+  } else {
+    btn.textContent = 'Connect Wallet';
+    btn.classList.remove('connected');
+  }
+}
+
+async function refreshAll() {
+  try {
+    if (!readProvider) {
+      readProvider = new ethers.JsonRpcProvider('https://ethereum-sepolia-rpc.publicnode.com');
+    }
+    const nftContract = new ethers.Contract(NFT_CONTRACT, ['function totalSupply() view returns (uint256)'], readProvider);
+    const auctionContract = new ethers.Contract(AUCTION_CONTRACT, AUCTION_ABI, readProvider);
+    
+    const total = await nftContract.totalSupply();
+    document.getElementById('totalSupply').textContent = Number(total).toString();
+    
+    const grid = document.getElementById('grid');
+    const empty = document.getElementById('emptyState');
+    
+    if (Number(total) === 0) {
+      if (empty) empty.style.display = 'block';
+      document.getElementById('liveCount').textContent = '0';
+    } else {
+      if (empty) empty.style.display = 'none';
+      // Build cards dynamically (but for now, just show count)
+      document.getElementById('liveCount').textContent = Number(total).toString();
+    }
+    
+    document.getElementById('loadingNotice').style.display = 'none';
+    document.getElementById('lastUpdated').textContent = 'Última actualización: ' + new Date().toLocaleTimeString();
+  } catch (e) {
+    console.error('refresh failed', e);
+    document.getElementById('loadingNotice').textContent = 'Error cargando datos: ' + (e.message || e);
+  }
+}
+
+document.addEventListener('click', e => {
+  if (e.target.id === 'connectBtn') {
+    if (userAddress) alert('Wallet: ' + userAddress);
+    else connectWallet();
+  }
+});
+
+if (typeof window.ethereum !== 'undefined') {
+  window.ethereum.request({ method: 'eth_accounts' }).then(accounts => {
+    if (accounts.length > 0) {
+      userAddress = accounts[0];
+      writeProvider = new ethers.BrowserProvider(window.ethereum);
+      writeProvider.getSigner().then(signer => {
+        writeContract = new ethers.Contract(AUCTION_CONTRACT, AUCTION_ABI, signer);
+        updateUI();
+      });
+    }
+  });
+}
+
+refreshAll();
+setInterval(refreshAll, POLL_INTERVAL_MS);
+</script>
+</body>
+</html>

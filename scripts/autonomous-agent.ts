@@ -23,6 +23,8 @@ import { guard } from "./quote-guard";
 import { generateThreeArtwork } from "./generate-three";
 
 const LOG_PATH = path.join(__dirname, "..", "logs", "agent.log");
+const ROOT = path.join(__dirname, "..");
+const DEPLOY_TEXTURES = path.join(ROOT, "deploy", "huaca", "textures");
 const CYCLE_INTERVAL_MS = 12 * 60 * 60 * 1000; // 12 hours
 const DAILY_MINT_CAP = 12;
 
@@ -80,6 +82,20 @@ async function processCandidate(candidate: Candidate, dryRun = false): Promise<b
 
   // Step 2: Generate artwork (Three.js voxel sculpture — primary format)
   log("  Generating voxel artwork...");
+
+  // Pick a sky filename derived from content hash (deterministic, stable
+  // across cycles). If a sky already exists in deploy/huaca/textures/sky-NNNN.png
+  // we reuse it; otherwise we skip sky generation entirely (this code path
+  // exists for cron cycles where mmx is rate-limited or unavailable, and we
+  // want at least the voxel to mint — the renderer still works without sky).
+  let skyHash = 0;
+  const cHashKey = (guardResult.cleaned || "") + "|" + (candidate.sourceUrl || "") + "|" + (candidate.attribution || "");
+  for (let i = 0; i < cHashKey.length; i++) skyHash = ((skyHash * 31) + cHashKey.charCodeAt(i)) | 0;
+  const skyNum = (Math.abs(skyHash) % 9999) + 1;
+  const skyRel = `textures/sky-${skyNum}.png`;
+  const skyExists = fs.existsSync(path.join(DEPLOY_TEXTURES, skyRel));
+  const skyUrl = skyExists ? skyRel : "";
+
   const artworkResult = await generateThreeArtwork({
     content: guardResult.cleaned,
     category: candidate.aiCategory || "other",
@@ -87,10 +103,16 @@ async function processCandidate(candidate: Candidate, dryRun = false): Promise<b
     source: candidate.source,
     sourceUrl: candidate.sourceUrl,
     scrapedAt: candidate.scrapedAt,
+    skyUrl,
   });
   log(`  Artwork saved: ${artworkResult.htmlPath}`);
   log(`  Voxels: ${artworkResult.voxelCount}`);
   log(`  Metadata: ${artworkResult.metadataPath}`);
+  if (!skyExists) {
+    log(`  No existing sky for ${skyRel} — voxel will render without sky background`);
+  } else {
+    log(`  Reusing existing sky: ${skyRel}`);
+  }
 
   // Step 3: Add to queue
   const queue = loadQueue();
